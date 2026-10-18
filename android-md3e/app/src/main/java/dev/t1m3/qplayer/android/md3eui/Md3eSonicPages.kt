@@ -583,6 +583,10 @@ internal fun SonicProfilePage(runtime: Md3eRuntime, onLogin: () -> Unit, onBiliL
         items(runtime.settings.rows(category).filter { supportedSetting(it) && it.key !in setOf("claudeDesign", "iosDesign", "sonicDesign") }, key = { "setting:${it.key}" }) { spec ->
             Box(Modifier.padding(horizontal = 16.dp)) { Md3eSettingRow(spec, runtime, revision) }
         }
+        if (category == SettingsCatalog.ABOUT) {
+            md3eAcknowledgements(horizontalPadding = 16.dp,
+                onOpenLink = runtime.controller::openExternalUrl)
+        }
     }
 }
 

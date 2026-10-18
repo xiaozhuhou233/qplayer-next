@@ -129,6 +129,21 @@ chmod +x gradlew
 
 欢迎提交界面、性能、兼容性与接口修复的 Pull Request。
 
+## 鸣谢
+
+- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) — 液态玻璃效果与 API（iOS mode）。
+- [NetEase API / NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) — 网易云音乐接口与请求加密参考。
+- [PixelPlayer](https://github.com/PixelPlayerHQ/PixelPlayer/releases) — MD3 inspiration 与 MiniPlayer 动效参考。
+- [MusicOne](https://github.com/HGODLK/MusicOne/tree/main/) — Some iOS inspiration。
+- [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) — Bilibili video & MV。
+
+### Tools I use
+
+- [Google Stitch](https://stitch.withgoogle.com) — FOR MOST UI DESIGN。
+- [DeepSeek](https://www.deepseek.com)
+- [ChatGPT](https://chatgpt.com)
+- [CLAUDE](https://claude.ai) — FUCK YOU ANTHROPIC BUT ALSO THANKS FOR CLAUDE MODE INSPIRATION
+
 ## 来源与许可
 
 项目基于 [QPlayer](https://github.com/TIMER-err/qplayer) 发展，原项目许可证保留于 [LICENSE.md](LICENSE.md)。第三方组件、字体与参考实现保留各自许可，详见 [THIRD_PARTY.md](THIRD_PARTY.md) 和源码内的 notices；原项目许可证不替代这些第三方许可。

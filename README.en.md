@@ -86,6 +86,21 @@ For a signed Release build, set `QPLAYER_KEYSTORE`, `QPLAYER_STORE_PASSWORD`, `Q
 
 Please [open an issue](https://github.com/xiaozhuhou233/qplayer-next/issues) with your app/Android versions, visual mode, and reproduction steps. For playback issues, include the provider and track. Remove cookies and API keys before sharing logs. Pull requests for UI, performance, compatibility, and service fixes are welcome.
 
+## Acknowledgements
+
+- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) — Liquid glass effects & API (iOS mode).
+- [NetEase API / NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) — NetEase Cloud Music API and request-encryption reference.
+- [PixelPlayer](https://github.com/PixelPlayerHQ/PixelPlayer/releases) — MD3 inspiration and MiniPlayer animation reference.
+- [MusicOne](https://github.com/HGODLK/MusicOne/tree/main/) — Some iOS inspiration.
+- [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) — Bilibili video & MV.
+
+### Tools I use
+
+- [Google Stitch](https://stitch.withgoogle.com) — FOR MOST UI DESIGN.
+- [DeepSeek](https://www.deepseek.com)
+- [ChatGPT](https://chatgpt.com)
+- [CLAUDE](https://claude.ai) — FUCK YOU ANTHROPIC BUT ALSO THANKS FOR CLAUDE MODE INSPIRATION
+
 ## Attribution and licenses
 
 Based on [QPlayer](https://github.com/TIMER-err/qplayer). Its original license is preserved in [LICENSE.md](LICENSE.md). Bundled third-party components retain their respective licenses; see [THIRD_PARTY.md](THIRD_PARTY.md) and the notices distributed with the source.

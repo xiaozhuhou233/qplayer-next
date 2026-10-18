@@ -67,6 +67,9 @@ internal fun Md3eSettingsPage(runtime: Md3eRuntime, modifier: Modifier = Modifie
                 items(settings.rows(category).filter { supportedSetting(it) && it.key !in setOf("claudeDesign", "iosDesign", "sonicDesign") }, key = { it.key }) { spec ->
                     Md3eSettingRow(spec, runtime, revision)
                 }
+                if (category == SettingsCatalog.ABOUT) {
+                    md3eAcknowledgements(onOpenLink = runtime.controller::openExternalUrl)
+                }
             }
         }
         return
@@ -94,6 +97,10 @@ internal fun Md3eSettingsPage(runtime: Md3eRuntime, modifier: Modifier = Modifie
             items(settings.rows(category).filter { supportedSetting(it) && it.key !in setOf("claudeDesign", "iosDesign", "sonicDesign") }, key = { it.key }) { spec ->
                 Box(Modifier.padding(horizontal = 16.dp)) { Md3eSettingRow(spec, runtime, revision) }
             }
+        if (category == SettingsCatalog.ABOUT) {
+            md3eAcknowledgements(horizontalPadding = 16.dp,
+                onOpenLink = runtime.controller::openExternalUrl)
+        }
         item("bottom-space") { Spacer(Modifier.height(16.dp)) }
     }
 }
