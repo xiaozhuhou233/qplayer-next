@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>afp</title></head>
+<body>
+<!--
+  听歌识曲的指纹实现 (round 37).
+
+  Both scripts are the ones the official client's own helper ships: `afp.wasm.js` is the fingerprint
+  engine with its wasm inlined (so nothing is fetched at run time — `blockNetworkLoads` stays on), and
+  `afp.js` is its wrapper, whose `GenerateFP(Float32Array)` is the whole API:
+
+      8 kHz mono float32 PCM  ->  GenerateFP  ->  base64 of the AFP blob
+
+  `extractFp` is what Java calls; the answer goes back through the injected `AndroidAfp` interface.
+  The buffer is passed as base64 of the little-endian float bytes, which is what Android's
+  `AudioRecord` gives us most cheaply.
+-->
+<script src="afp.wasm.js"></script>
+<script src="afp.js"></script>
+<script>
+  window.__ready = false;
+
+  function b64ToFloat32(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Float32Array(bytes.buffer);
+  }
+
+  window.extractFp = function (b64pcm) {
+    try {
+      var pcm = b64ToFloat32(b64pcm);
+      // GenerateFP is async in this build (the official demo calls .then on it), so both shapes are
+      // handled rather than assuming one.
+      Promise.resolve(GenerateFP(pcm)).then(
+        function (fp) { AndroidAfp.result(fp); },
+        function (err) { AndroidAfp.error(String(err)); });
+    } catch (e) {
+      AndroidAfp.error(String(e));
+    }
+  };
+
+  window.__ready = true;
+</script>
+</body>
+</html>

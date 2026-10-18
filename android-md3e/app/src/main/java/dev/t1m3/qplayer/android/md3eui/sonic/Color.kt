@@ -1,0 +1,63 @@
+package dev.t1m3.qplayer.android.md3eui.sonic
+
+import androidx.compose.ui.graphics.Color
+
+// Sonic Tonal Light System Colors
+val Surface = Color(0xFFFEF7FF)
+val SurfaceDim = Color(0xFFDED8DF)
+val SurfaceBright = Color(0xFFFEF7FF)
+val SurfaceContainerLowest = Color(0xFFFFFFFF)
+val SurfaceContainerLow = Color(0xFFF8F2F9)
+val SurfaceContainer = Color(0xFFF2ECF3)
+val SurfaceContainerHigh = Color(0xFFECE6ED)
+val SurfaceContainerHighest = Color(0xFFE6E1E8)
+val OnSurface = Color(0xFF1D1B20)
+val OnSurfaceVariant = Color(0xFF494551)
+val InverseSurface = Color(0xFF322F35)
+val InverseOnSurface = Color(0xFFF5EFF6)
+val Outline = Color(0xFF7A7582)
+val OutlineVariant = Color(0xFFCBC4D2)
+
+val Primary = Color(0xFF4F378A)
+val OnPrimary = Color(0xFFFFFFFF)
+val PrimaryContainer = Color(0xFF6750A4)
+val OnPrimaryContainer = Color(0xFFE0D2FF)
+val PrimaryFixed = Color(0xFFE9DDFF)
+val PrimaryFixedDim = Color(0xFFCFBCFF)
+val OnPrimaryFixed = Color(0xFF22005D)
+
+val Secondary = Color(0xFF625B71)
+val OnSecondary = Color(0xFFFFFFFF)
+val SecondaryContainer = Color(0xFFE8DEF9)
+val OnSecondaryContainer = Color(0xFF686177)
+val SecondaryFixed = Color(0xFFE8DEF9)
+
+val Tertiary = Color(0xFF633B48)
+val OnTertiary = Color(0xFFFFFFFF)
+val TertiaryContainer = Color(0xFF7D5260)
+val OnTertiaryContainer = Color(0xFFFFCBDA)
+val TertiaryFixed = Color(0xFFFFD9E3)
+
+val Error = Color(0xFFBA1A1A)
+val OnError = Color(0xFFFFFFFF)
+val ErrorContainer = Color(0xFFFFDAD6)
+val OnErrorContainer = Color(0xFF93000A)
+
+// Nocturne Velvet System Colors (for Artist Spotlight)
+val NocturneSurface = Color(0xFF1F0C21)
+val NocturneSurfaceLow = Color(0xFF28142A)
+val NocturneSurfaceContainer = Color(0xFF2C182E)
+val NocturneSurfaceHigh = Color(0xFF372339)
+val NocturneSurfaceHighest = Color(0xFF432D44)
+val NocturneOnSurface = Color(0xFFF9D9F7)
+val NocturneOnSurfaceVariant = Color(0xFFDDC1B7)
+val NocturneMuted = Color(0xFFB38F9F)
+val NocturnePrimary = Color(0xFFFF8B5B) // Sunset Coral
+val NocturneOnPrimary = Color(0xFF5A1C00)
+val NocturnePrimaryContainer = Color(0xFFFF8B5B)
+val NocturneSecondary = Color(0xFFE6BBCB)
+val NocturneOnSecondary = Color(0xFF442835)
+val NocturneSecondaryContainer = Color(0xFF5F404D)
+val NocturneTertiary = Color(0xFFFFA375)
+val NocturneGlassBorder = Color(0x33FFFFFF)
+val NocturneGlassFill = Color(0x663B1D3D)

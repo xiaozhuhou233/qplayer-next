@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<style>
+html,body { margin:0; width:100%; height:100%; overflow:hidden; background:transparent; }
+body { position:relative; }
+svg { position:absolute; left:12%; top:12%; width:76%; height:76%; display:block; overflow:visible; --fg:#141413; --bg:#FBF1E1; }
+@media(prefers-color-scheme:dark) { svg { --fg:#D97757; --bg:#141413; } }
+</style></head><body>
+<svg id="mascot" viewBox="-15 -15 259 259" aria-label="AI DJ 正在寻找音乐" role="img">
+  <path fill="var(--fg)" d="M228.541 114.228C228.541 130.133 225.184 145.994 218.738 160.534C212.674 174.217 203.904 186.669 193.065 196.988C155.933 232.34 99.497 238.596 55.5255 212.24C45.097 205.99 35.6851 198.072 27.7451 188.866C19.1926 178.953 12.3686 167.569 7.65781 155.351C2.60712 142.264 0 128.257 0 114.228C0 98.3219 3.35751 82.4611 9.80315 67.9215C15.8672 54.2382 24.6377 41.7862 35.4767 31.4668C72.6081 -3.88483 129.044 -10.1413 173.016 16.2153C183.444 22.4653 192.856 30.3829 200.796 39.5896C209.349 49.5018 216.173 60.8859 220.883 73.1037C225.934 86.1906 228.541 100.198 228.541 114.228Z"/>
+  <ellipse fill="var(--bg)" cx="139" cy="65" rx="11" ry="20" transform="rotate(-24 139 65)"/>
+  <ellipse fill="var(--bg)" cx="183" cy="57" rx="9" ry="20" transform="rotate(-24 183 57)"/>
+</svg>
+<script src="engine.js"></script>
+<script>
+// WebView can begin loading before its Compose host has a viewport. Give the
+// original SVG a concrete size once layout arrives rather than relying on vmin.
+function sizeMascot() {
+  var svg = document.getElementById('mascot');
+  var width = window.innerWidth || document.documentElement.clientWidth;
+  var height = window.innerHeight || document.documentElement.clientHeight;
+  var side = Math.min(width, height) * 0.76;
+  if (side > 0) {
+    // Android WebView's initial containing block may retain zero CSS height even
+    // after innerHeight becomes valid. Avoid clipping the animated SVG to it.
+    document.documentElement.style.width = width + 'px';
+    document.documentElement.style.height = height + 'px';
+    document.body.style.width = width + 'px';
+    document.body.style.height = height + 'px';
+    svg.style.width = side + 'px';
+    svg.style.height = side + 'px';
+    svg.style.left = ((width - side) / 2) + 'px';
+    svg.style.top = ((height - side) / 2) + 'px';
+  }
+}
+window.addEventListener('resize', sizeMascot);
+sizeMascot();
+requestAnimationFrame(sizeMascot);
+const mascot = new GrokCharacter(document.getElementById('mascot'), {
+  mode:'hold', state:'searching', shape:'blob', color:'black', scheme:'light',
+  followPointer:false, paused:false, loginWrap:true
+});
+let currentStage = '';
+let homeMood = 0;
+const homeMoods = ['curious', 'playful', 'happy', 'listening', 'excited'];
+window.updateMascot = function(active, reduced, dark, stage = 'searching') {
+  sizeMascot();
+  mascot.setColor('black', dark ? 'dark' : 'light');
+  mascot.setInk(dark ? '#D97757' : '#141413');
+  mascot.setEyeColor(dark ? '#141413' : '#FBF1E1');
+  mascot.reduceMotion = reduced;
+  mascot.setPaused(!active || reduced);
+  if (stage !== currentStage) {
+    currentStage = stage;
+    mascot.setState(({home:'curious', random:'playful', searching:'searching',
+      ready:'excited', error:'confused'})[stage] || 'searching');
+    if (stage === 'home' || stage === 'random') mascot.spinOnce();
+    if (stage === 'ready') mascot.bounceOnce();
+  }
+  document.documentElement.dataset.mascotStage = stage;
+};
+// Use the archive's own face morphs and spin spring. Hidden surfaces do no work.
+const moodTimer = setInterval(() => {
+  if (mascot.paused || mascot.reduceMotion) return;
+  if (currentStage === 'home') {
+    mascot.setState(homeMoods[++homeMood % homeMoods.length]);
+    mascot.spinOnce();
+  } else if (currentStage === 'random') mascot.spinOnce();
+}, 3200);
+window.addEventListener('pagehide', () => { clearInterval(moodTimer); mascot.destroy(); });
+updateMascot(true, matchMedia('(prefers-reduced-motion: reduce)').matches,
+  matchMedia('(prefers-color-scheme: dark)').matches);
+document.documentElement.dataset.mascotReady = 'true';
+</script></body></html>

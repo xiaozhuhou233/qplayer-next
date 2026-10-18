@@ -1,0 +1,25 @@
+Seal UI drawing and motion attribution
+
+Upstream: https://github.com/JunkFood02/Seal
+Revision: 7677f61a20fda4210e84215fef9e9b51d25daa47
+Seal source license: GNU General Public License version 3.
+The complete license is included as Seal-GPL-3.0.txt in this directory.
+
+The Android MD3E interface adapts reusable drawing and motion from:
+ui/common/AnimatedComposable.kt
+ui/common/AsyncImageImpl.kt
+ui/common/motion/AnimationSpecs.kt
+ui/common/motion/MaterialSharedAxis.kt
+ui/page/downloadv2/TopBarNestedScrollConnection.kt
+ui/page/downloadv2/DownloadPageV2.kt
+ui/page/downloadv2/VideoCardV2.kt
+ui/page/downloadv2/configure/DownloadDialogV2.kt
+ui/component/SelectionGroup.kt
+
+The MaterialSharedAxis implementation additionally retains the upstream
+Copyright 2021 SOUP and Apache License 2.0 notice in Md3eSealSharedAxis.kt.
+
+QPlayer adaptation uses music and AI-generation states instead of Seal's
+download tasks. The Seal downloader, URL configuration and format selection
+are not part of this adaptation. Image decoding remains QPlayer's loader;
+the image appearance animation follows Seal AsyncImageImpl's crossfade.

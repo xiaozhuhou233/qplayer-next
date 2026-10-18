@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 听歌识曲的麦克风采集：没有这条声明，运行时权限对话框会直接拒绝。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 保后台：向用户申请「忽略电池优化」的系统对话框必须声明这条权限，
+         否则 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 会被系统直接拒绝。 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Attaching android.media.audiofx.Equalizer/BassBoost to an audio session
+         needs this normal permission; without it the constructor throws and the
+         equalizer silently does nothing. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <application android:name="dev.t1m3.qplayer.android.app.QPlayerApplication"
+        android:label="QPlayer MD3E" android:theme="@style/Md3eTheme"
+        android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:allowBackup="false"
+        android:supportsRtl="true" android:usesCleartextTraffic="true">
+        <activity android:name=".Md3eActivity" android:exported="true" android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Existing PlaybackService targets this name. Resolve to the new root without old UI. -->
+        <activity-alias android:name="dev.t1m3.qplayer.android.ui.ComposeQPlayerActivity"
+            android:targetActivity=".Md3eActivity" android:exported="false" />
+        <service android:name="dev.t1m3.qplayer.android.playback.PlaybackService"
+            android:exported="false" android:foregroundServiceType="mediaPlayback" android:stopWithTask="true">
+            <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
+        </service>
+        <receiver android:name="androidx.media.session.MediaButtonReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>

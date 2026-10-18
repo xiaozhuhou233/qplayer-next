@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📻 手绘收音机 · 正在播放</title>
+<style>
+  :root { --beat: .9s; }              /* 节拍:约 66 BPM,所有动画以它为基准 */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 24px;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+    background: radial-gradient(circle at 50% 40%, #FFF9F0 0%, #FFEFD9 58%, #FFE2C9 100%);
+    overflow: hidden;
+  }
+  h1 { font-size: 22px; font-weight: 800; color: #5b4632; letter-spacing: 1px; }
+  .caption { font-size: 14px; color: #9a8266; font-weight: 600; }
+  svg.radio { width: min(560px, 88vw); height: auto; }
+
+  /* 所有部件的旋转/缩放都以 viewBox 坐标为基准 */
+  .groove, .antenna, .speaker, .speaker .arc, .knob, .tick { transform-box: view-box; }
+
+  /* 整机随节拍摇摆 + 弹跳(原地位形) */
+  .groove {
+    transform-origin: 508px 750px;
+    animation: groove calc(var(--beat) * 2) ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes groove {
+    0%, 50%, 100% { transform: rotate(0deg) translateY(0); }
+    25%           { transform: rotate(-1.2deg) translateY(-7px); }
+    75%           { transform: rotate(1.2deg) translateY(-7px); }
+  }
+
+  /* 天线以根部为轴轻轻摆动 */
+  .antenna { transform-origin: 699px 358px; animation: antenna calc(var(--beat) * 2) ease-in-out infinite; }
+  @keyframes antenna {
+    0%, 100% { transform: rotate(0deg); }
+    30%      { transform: rotate(3.5deg); }
+    70%      { transform: rotate(-2.5deg); }
+  }
+
+  /* 喇叭随节拍"泵动"( Woofer in-and-out ) */
+  .speaker { transform-origin: 407px 557px; animation: pump var(--beat) ease-in-out infinite; }
+  @keyframes pump {
+    0%, 100% { transform: scale(1); }
+    35%      { transform: scale(1.035); }
+    70%      { transform: scale(.988); }
+  }
+  /* 内圈喇叭纹路稍微更大更慢一点点,做出纵深 */
+  .speaker .arc { transform-origin: 407px 557px; animation: pumpArc var(--beat) ease-in-out infinite; }
+  .speaker .arc2 { animation-delay: .06s; }
+  .speaker .arc3 { animation-delay: .12s; }
+  @keyframes pumpArc {
+    0%, 100% { transform: scale(1); }
+    35%      { transform: scale(1.06); }
+    70%      { transform: scale(.985); }
+  }
+
+  /* 调频刻度盘:5 根刻度变成跳动的均衡器(从底部向上生长) */
+  .tick { animation: eq var(--beat) ease-in-out infinite; opacity: .5; }
+  .t1 { transform-origin: 597px 458px; }
+  .t2 { transform-origin: 623px 453px; animation-delay: .12s; }
+  .t3 { transform-origin: 650px 459px; animation-delay: .24s; }
+  .t4 { transform-origin: 678px 453px; animation-delay: .36s; }
+  .t5 { transform-origin: 705px 458px; animation-delay: .48s; }
+  @keyframes eq {
+    0%, 100% { transform: scaleY(.35); opacity: .45; }
+    50%      { transform: scaleY(1);    opacity: 1; }
+  }
+  /* 调频指针左右游走,像在搜台 */
+  .needle { animation: tune calc(var(--beat) * 4) ease-in-out infinite; transform-box: view-box; }
+  @keyframes tune {
+    0%, 100% { transform: translateX(0); }
+    30%      { transform: translateX(-9px); }
+    65%      { transform: translateX(8px); }
+  }
+
+  /* 两个旋钮轮流被"按下去" */
+  .knob { animation: knob var(--beat) ease-in-out infinite; }
+  .kl { transform-origin: 612px 589px; }
+  .kr { transform-origin: 710px 585px; animation-delay: calc(var(--beat) * .5); }
+  @keyframes knob {
+    0%, 100% { transform: scale(1); }
+    40%      { transform: scale(1.09); }
+  }
+
+  /* 侧边声波:向外扩散并呼吸 */
+  .wave { animation: wave calc(var(--beat) * 2) ease-out infinite; opacity: .25; }
+  .w2 { animation-delay: calc(var(--beat) * .35); }
+  @keyframes wave {
+    0%, 100% { transform: translateX(0);    opacity: .2; }
+    45%      { transform: translateX(-12px); opacity: .95; }
+  }
+
+  /* 音符从喇叭飘出,一路摇摇摆摆向上消散 */
+  .note {
+    font-size: 72px; font-weight: 700;
+    transform-box: fill-box; transform-origin: 50% 50%;
+    opacity: 0;
+    animation: floatNote calc(var(--beat) * 4) ease-in-out infinite;
+  }
+  .n1 { animation-delay: 0s; }
+  .n2 { animation-delay: calc(var(--beat) * 1); font-size: 58px; }
+  .n3 { animation-delay: calc(var(--beat) * 2); }
+  .n4 { animation-delay: calc(var(--beat) * 3); font-size: 62px; }
+  @keyframes floatNote {
+    0%   { transform: translate(0,0)        rotate(-8deg)  scale(.5); opacity: 0; }
+    14%  { opacity: .95; }
+    40%  { transform: translate(16px,-95px) rotate(9deg)   scale(1);  opacity: .85; }
+    70%  { transform: translate(-10px,-180px) rotate(-9deg) scale(.9); opacity: .45; }
+    100% { transform: translate(8px,-255px) rotate(12deg)  scale(.78); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; }
+    .note { opacity: .8; }
+  }
+  body { background: transparent; padding: 0; gap: 0; }
+  h1, .caption { display: none; }
+  svg.radio { width: min(560px, 100vw, 100vh); }
+  .groove, .antenna, .speaker, .speaker .arc, .tick, .needle, .knob, .wave, .note {
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+    animation-play-state: paused;
+  }
+  body.playing:not(.paused) * { animation-play-state: running; }
+</style>
+</head>
+<body>
+  <h1>📻 正在播放 · FM 88.8</h1>
+
+  <svg class="radio" viewBox="0 0 1024 1024" role="img" aria-label="手绘复古收音机,正在播放音乐">
+    <!-- 象牙白底形(保持静止,充当背景) -->
+    <path d="M195 285 C219 221 292 204 350 219 C402 177 478 190 531 216 C593 196 651 221 697 228 C757 219 817 266 808 325 C857 365 847 420 863 471 C881 530 839 575 851 628 C865 690 826 742 770 751 C734 805 668 805 614 794 C553 833 489 803 435 813 C369 825 314 793 263 793 C201 792 163 744 175 690 C137 643 158 587 147 536 C129 475 163 434 159 387 C154 344 169 308 195 285Z" fill="#FAF9F5"/>
+
+    <!-- 整机:随节拍摇摆 -->
+    <g class="groove">
+      <g fill="none" stroke="#141413" stroke-linecap="round" stroke-linejoin="round">
+        <!-- 天线 + 天线尖:绕根部摆动 -->
+        <g class="antenna">
+          <path d="M699 358 C721 301 746 238 773 177" stroke-width="15"/>
+          <path d="M770 164 C778 162 786 169 785 177 C784 185 777 191 769 188 C761 186 758 177 761 171 C763 167 766 165 770 164Z" fill="#141413"/>
+        </g>
+        <!-- 提手 -->
+        <path d="M358 355 L361 305 C362 286 373 277 393 279 L571 286 C590 287 603 298 602 317 L602 354" stroke-width="18"/>
+        <!-- 机身 -->
+        <path d="M278 362 C421 348 564 362 732 353 C762 351 783 370 784 401 C785 486 792 588 787 702 C786 732 769 748 738 748 C584 755 438 739 284 750 C253 752 235 734 234 704 C231 601 237 508 232 416 C230 384 249 365 278 362Z" stroke-width="21"/>
+        <!-- 喇叭:泵动 -->
+        <g class="speaker">
+          <path d="M418 442 C354 434 294 486 297 556 C300 623 349 672 414 671 C476 670 520 620 516 554 C513 491 473 445 418 442Z" stroke-width="17"/>
+          <path class="arc arc1" d="M376 482 C343 504 333 537 342 567 C351 599 371 614 399 620" stroke-width="14"/>
+          <path class="arc arc2" d="M416 478 C446 478 473 500 479 532 C485 563 474 592 454 609" stroke-width="13"/>
+          <path class="arc arc3" d="M386 521 C370 534 367 553 376 571 C385 588 403 593 420 586" stroke-width="13"/>
+        </g>
+        <!-- 调频刻度盘:均衡器跳舞 -->
+        <path d="M576 428 C618 424 670 431 727 429 L725 498 C670 499 622 493 575 497Z" stroke-width="12"/>
+        <g class="ticks" stroke-width="8">
+          <line class="tick t1" x1="597" y1="442" x2="597" y2="458"/>
+          <line class="tick t2" x1="623" y1="443" x2="623" y2="453"/>
+          <line class="tick t3" x1="650" y1="444" x2="650" y2="459"/>
+          <line class="tick t4" x1="678" y1="443" x2="678" y2="453"/>
+          <line class="tick t5" x1="705" y1="444" x2="705" y2="458"/>
+        </g>
+        <path d="M592 480 C631 476 676 481 710 479" stroke-width="9"/>
+        <!-- 调频指针:左右游走搜台 -->
+        <path class="needle" d="M662 460 L662 488" stroke-width="9"/>
+        <!-- 侧边广播声波:向外扩散 -->
+        <g class="waves">
+          <path class="wave w1" d="M193 408 C178 428 176 451 185 473" stroke-width="13"/>
+          <path class="wave w2" d="M159 387 C137 414 131 448 144 480" stroke-width="14"/>
+        </g>
+      </g>
+      <!-- 双旋钮:轮流按压 -->
+      <g fill="#141413">
+        <path class="knob kl" d="M613 547 C586 543 568 564 570 590 C572 616 593 633 619 630 C644 627 658 606 654 583 C650 560 635 548 613 547Z"/>
+        <path class="knob kr" d="M711 550 C689 547 673 563 674 585 C675 607 692 622 713 620 C735 618 749 602 746 581 C743 562 729 551 711 550Z"/>
+      </g>
+    </g>
+
+    <!-- 飘出的音符(独立于整机,运动更干净) -->
+    <g class="notes">
+      <text class="note n1" x="385" y="425" fill="#141413">♪</text>
+      <text class="note n2" x="472" y="455" fill="#E07850">♫</text>
+      <text class="note n3" x="345" y="480" fill="#141413">♪</text>
+      <text class="note n4" x="505" y="415" fill="#141413">♪</text>
+    </g>
+  </svg>
+
+  <p class="caption">♪ 喇叭在振动 · 均衡器在跳 · 指针在搜台 · 音符飘出来了…</p>
+<script>
+  let started = false;
+  function playRadio(reducedMotion) {
+    if (started) return;
+    started = true;
+    if (reducedMotion) {
+      document.querySelectorAll('*').forEach(element => element.style.animation = 'none');
+    }
+    document.body.classList.add('playing');
+  }
+</script>
+</body>
+</html>

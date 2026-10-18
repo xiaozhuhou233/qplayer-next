@@ -1,0 +1,3 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="300dp" android:height="80dp" android:viewportWidth="300" android:viewportHeight="80" android:autoMirrored="true">
+  <group android:name="motion" android:pivotX="48"><path android:fillColor="#FF000000" android:pathData="M40,0 H56 Q96,0 96,40 V40 Q96,80 56,80 H40 Q0,80 0,40 V40 Q0,0 40,0 Z"/></group>
+</vector>

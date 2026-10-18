@@ -1,0 +1,38 @@
+# Build output and local tooling
+.gradle/
+.kotlin/
+**/.gradle/
+**/.kotlin/
+**/build/
+target/
+out/
+.idea/
+*.iml
+local.properties
+.DS_Store
+Thumbs.db
+hs_err_pid*
+replay_pid*
+*.log
+
+# Signing and machine/account data
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+.env
+.env.*
+!.env.example
+keystore.properties
+signing.properties
+credentials*.json
+cookies*.json
+cookies*.txt
+.android/
+.android-user-home/
+
+# Installers are published separately from source
+*.apk
+*.aab
+*.apks
