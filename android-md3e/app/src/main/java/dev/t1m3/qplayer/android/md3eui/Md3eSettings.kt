@@ -30,8 +30,8 @@ import kotlin.math.roundToInt
 // the old SettingsCatalog-driven Android screen.
 private val md3eSettingKeys = setOf(
     SettingsCatalog.LOW_SPEC_MODE_KEY, SettingsCatalog.PAGE_TRANSITION_KEY,
-    "claudeDesign", "iosDesign", "sonicDesign", "sonicDisplayFonts", "iosGlassRefraction", "darkMode", "showLocalTab", "monet", "paletteStyle", "paletteChroma", "maxCacheSizeMB",
-    "lyricFontSize", "lyricLineSpacing", "lyricSpring", "lyricScale",
+    "claudeDesign", "iosDesign", "sonicDesign", "sonicDisplayFonts", "iosGlassRefraction", "darkMode", "showLocalTab", "monet", "paletteStyle", "palettePreset", "paletteChroma", "maxCacheSizeMB",
+    "lyricFontSize", "lyricLineSpacing", "lyricSpring", "lyricScale", "lyricEdgeBlur",
     "lyricGlow", "lyricShadow", "lyricLinearAnim", "lyricMd3Color",
     "lyricProgressStyle", SettingsCatalog.COVER_BACKGROUND_KEY, SettingsCatalog.MV_BACKGROUND_KEY,
     "action:clearCache", "action:openRepo", "action:checkUpdate",
@@ -43,13 +43,13 @@ internal fun supportedSetting(spec: SettingSpec): Boolean = spec.key in md3eSett
     spec.category == SettingsCatalog.ACE_STEP
 
 @Composable
-internal fun Md3eSettingsPage(runtime: Md3eRuntime, modifier: Modifier = Modifier) {
+internal fun Md3eSettingsPage(runtime: Md3eRuntime, modifier: Modifier = Modifier, initialCategory: String? = null) {
     val settings = runtime.settings
     val revision = runtime.settingsRevision
     val categories = remember { settings.categories().filter { category ->
         settings.rows(category).any(::supportedSetting)
     } }
-    var category by remember { mutableStateOf(categories.firstOrNull().orEmpty()) }
+    var category by remember(initialCategory) { mutableStateOf(initialCategory?.takeIf { it in categories } ?: categories.firstOrNull().orEmpty()) }
     if (!LocalIosDesign.current) {
         Column(modifier) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -132,9 +132,15 @@ internal fun Md3eDesignModeSelector(runtime: Md3eRuntime) {
 internal fun Md3eSettingRow(spec: SettingSpec, runtime: Md3eRuntime,
     @Suppress("UNUSED_PARAMETER") revision: Int) {
     val settings = runtime.settings
+    val sonic = LocalSonicDesign.current
+    val staticPalette = dev.t1m3.qplayer.color.MaterialArtworkPalette.isStaticStyle(settings.intOf("paletteStyle"))
+    if (spec.key == "palettePreset" && (!sonic || !staticPalette)) return
+    if (sonic && (spec.key == "paletteChroma" || (spec.key == "monet" && staticPalette))) return
     if (spec.dependsOn.isNotBlank() && !settings.bool(spec.dependsOn)) return
     val current = settings.intOf(spec.key).coerceIn(spec.min, spec.max)
-    val description = if (spec.key == "iosDesign") "液态玻璃界面" else spec.provider.takeIf { it.isNotBlank() }?.let(settings::info)
+    val description = if (sonic && spec.key == "paletteStyle") {
+        if (staticPalette) "固定预设 · 不从图片取色" else "跟随封面 · 各页面独立取色"
+    } else if (sonic && spec.key == "palettePreset") "" else if (spec.key == "iosDesign") "液态玻璃界面" else spec.provider.takeIf { it.isNotBlank() }?.let(settings::info)
         ?.takeIf { it.isNotBlank() } ?: spec.desc
     Card(shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -161,6 +167,8 @@ internal fun Md3eSettingRow(spec: SettingSpec, runtime: Md3eRuntime,
                     SettingSpec.ACTION -> TextButton(onClick = {
                         // Ⓜ The chat tester owns a dialog, not a plain action.
                         if (spec.action == "aiChatProbe") runtime.aiChatProbeRequested = true
+                        else if (spec.action == "aiSearchProbe") runtime.aiSearchProbeRequested = true
+                        else if (spec.action == "aiWeatherLocation") runtime.weatherLocationRequested = true
                         // The equalizer editor needs UI state, not a plain runnable.
                         else if (spec.action == "eqEditor") runtime.eqDialogRequested = true
                         else runtime.invokeSetting(spec.action)
@@ -177,7 +185,9 @@ internal fun Md3eSettingRow(spec: SettingSpec, runtime: Md3eRuntime,
                 }, valueRange = spec.min.toFloat()..spec.max.toFloat(),
                     steps = ((spec.max - spec.min) / spec.step.coerceAtLeast(1) - 1).coerceAtLeast(0))
                 SettingSpec.SEGMENTED, SettingSpec.RADIO, SettingSpec.DROPDOWN ->
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    if (sonic && spec.key == "paletteStyle") SonicPaletteStylePicker(runtime, spec.options)
+                    else if (sonic && spec.key == "palettePreset") SonicPalettePresetPicker(runtime, spec.options)
+                    else Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         spec.options.forEachIndexed { index, option ->
                             if (index == settings.intOf(spec.key))

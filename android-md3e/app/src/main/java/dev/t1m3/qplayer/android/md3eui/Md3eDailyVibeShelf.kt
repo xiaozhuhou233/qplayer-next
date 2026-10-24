@@ -61,6 +61,16 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
                 Text("重新生成")
             }
         }
+        if (state.liveStatus.isNotBlank()) Text(state.liveStatus,
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val timed = runtime.dailyVibes.timed
+        if (timed.loading) Text(timed.message, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (timed.error.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(timed.error, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = { timed.ensure(manual = true) }, enabled = !timed.loading) { Text("重试时段歌单") }
+        }
         if (state.loading || state.error.isNotBlank() || state.playlists.size != 3) {
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -80,7 +90,7 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
                 }
             }
         }
-        if (state.playlists.isNotEmpty()) {
+        if (runtime.dailyVibes.playlists.isNotEmpty()) {
         if (LocalSonicDesign.current) {
             SonicVibeAccordion(runtime, onOpen, onEdit = { playlist ->
                 if (conversation != null) conversation.show(playlist)
@@ -91,11 +101,12 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
         } else {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 8.dp)) {
-            itemsIndexed(state.playlists, key = { _, it -> it.slot }) { index, playlist ->
+            itemsIndexed(runtime.dailyVibes.playlists, key = { _, it -> it.slot }) { index, playlist ->
                 // Only the artwork has rounded clipping: titles and descriptions keep their full bounds.
                 Column(Modifier.width(164.dp).claudeClickable(onClick = { onOpen(playlist) },
                     onLongClickLabel = "输入要求修改这组 AI 歌单", onLongClick = {
-                        if (!state.loading) {
+                        if (conversation != null) conversation.show(playlist)
+                        else if (!state.loading) {
                             editingSlot = playlist.slot
                             requirements = ""
                             submitError = ""
@@ -127,7 +138,7 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
-    state.playlists.firstOrNull { it.slot == savingSlot }?.let { playlist ->
+    runtime.dailyVibes.playlists.firstOrNull { it.slot == savingSlot }?.let { playlist ->
         AlertDialog(onDismissRequest = { savingSlot = null }, title = { Text("收藏为网易云歌单") },
             text = { Text("将「${playlist.name}」的 ${playlist.songs.size} 首歌曲保存到网易云「我创建的」歌单。") },
             confirmButton = { TextButton(onClick = {
@@ -136,7 +147,7 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
             }, enabled = !state.loading && state.savingSlot == null) { Text("收藏") } },
             dismissButton = { TextButton(onClick = { savingSlot = null }) { Text("取消") } })
     }
-    state.playlists.firstOrNull { it.slot == editingSlot }?.let { playlist ->
+    runtime.dailyVibes.playlists.firstOrNull { it.slot == editingSlot }?.let { playlist ->
         AlertDialog(onDismissRequest = { editingSlot = null },
             title = { Text("修改 AI 歌单") },
             text = {
@@ -164,8 +175,19 @@ internal fun DailyVibeShelf(runtime: Md3eRuntime, onLogin: () -> Unit = { runtim
 @Composable
 internal fun DailyVibeDetails(runtime: Md3eRuntime, initial: DailyVibeCuration.Playlist, onDismiss: () -> Unit,
     onLogin: () -> Unit, onEnqueue: (NeteaseSong) -> Unit, onPlay: (List<NeteaseSong>, Int) -> Unit) {
+    val playlist = runtime.dailyVibes.playlists.firstOrNull { it.slot == initial.slot } ?: initial
+    val cover = playlist.songs.firstOrNull()?.let { it.coverThumbPath ?: it.coverUrl }.orEmpty()
+    SonicArtworkTheme(if (LocalSonicDesign.current && runtime.settings.bool("monet")) cover else null) {
+        DailyVibeDetailsContent(runtime, initial, onDismiss, onLogin, onEnqueue, onPlay)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun DailyVibeDetailsContent(runtime: Md3eRuntime, initial: DailyVibeCuration.Playlist, onDismiss: () -> Unit,
+    onLogin: () -> Unit, onEnqueue: (NeteaseSong) -> Unit, onPlay: (List<NeteaseSong>, Int) -> Unit) {
     val state = runtime.dailyVibes.state
-    val playlist = state.playlists.firstOrNull { it.slot == initial.slot } ?: initial
+    val playlist = runtime.dailyVibes.playlists.firstOrNull { it.slot == initial.slot } ?: initial
     val busy = state.loading || state.savingSlot != null
     var editing by remember(initial.slot, state.day) { mutableStateOf(false) }
     var draft by remember(initial.slot, state.day) { mutableStateOf(playlist.songs.toList()) }
@@ -410,6 +432,7 @@ private fun DailyVibeAddSongs(runtime: Md3eRuntime, added: Set<Long>, onDismiss:
             }
         }, confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } })
 }
+
 
 
 

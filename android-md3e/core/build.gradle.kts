@@ -9,7 +9,10 @@ sourceSets {
         java.setSrcDirs(listOf("../../player-core/src/main/java"))
         resources.setSrcDirs(listOf("../../player-core/src/main/resources"))
     }
-    test { java.setSrcDirs(listOf("../../player-core/src/test/java")) }
+    test {
+        java.setSrcDirs(listOf("../../player-core/src/test/java"))
+        resources.setSrcDirs(listOf("../../player-core/src/test/resources"))
+    }
 }
 tasks.withType<JavaCompile>().configureEach { options.encoding = "UTF-8" }
 dependencies {

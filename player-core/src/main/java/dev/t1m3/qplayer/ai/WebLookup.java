@@ -1,169 +1,234 @@
 package dev.t1m3.qplayer.ai;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
-/**
- * 联网检索，两个后端，一个接口。
- *
- * <p>用户 2026-10-18：「deepseek api 支持联网搜索了，所以你让 ai 如果碰到需要联网的问题就去联网」.
- * DeepSeek 的搜索<b>不</b>是 chat 请求里的一个开关，而是一个独立的工具接口
- * （{@code POST /v1/tools/search}，见 api-docs.deepseek.com/zh-cn/guides/search）：
- * 我们先用用户的同一个 Key 去搜，再把结果作为「参考资料」塞进 AI 的提示词。所以这里的
- * 两种后端只是入口不同，交给模型的东西完全一样：
- *
- * <ul>
- *   <li><b>DeepSeek</b>（{@code /tools/search}）：同一个 API Key、同一个地址前缀。
- *       响应里每条有 {@code title/url/summary/content}，{@code summary} 就是给模型读的长摘要。</li>
- *   <li><b>Tavily 兼容</b>（原有的 {@link WebSearchClient}）：用户自填的地址与 Key。</li>
- * </ul>
- *
- * <p>选哪一个只看用户填的「搜索 API 地址」：空、或指向 deepseek.com，就走 DeepSeek；
- * 其它地址走 Tavily 兼容。两者都没有可用的 Key 时返回空串 —— 调用方据此降级为
- * 「用模型自己的知识回答」，而不是整个请求失败。
- *
- * <p>另一条约定：<b>一次失败不等于失败</b>。搜索是锦上添花，任何异常都吞掉并返回空串，
- * 由调用方决定是否提示；生成歌单这件事本身不能被搜索拖垮。
+/** Independent DeepSeek Search API, with the existing Tavily-compatible backend.
+ * https://api-docs.deepseek.com/zh-cn/guides/search/
+ * Failures are observable, but never prevent music recommendations.
  */
 public final class WebLookup {
-
-    /** 搜索请求里带多少条结果：够模型挑，又不会把提示词撑长。 */
     private static final int RESULTS = 5;
-
     private WebLookup() {}
 
-    /**
-     * {@code true} 当搜索地址应当理解为 DeepSeek 的搜索工具 —— 空地址（跟随 AI 自己的地址）
-     * 或明确指向 deepseek.com。
-     */
+    public static final class Result {
+        public final String context, status;
+        public final int httpStatus;
+        public final boolean ok;
+        public final List<WebEvidence.Source> sources;
+        Result(String context, String status, int httpStatus, boolean ok) {
+            this(context, status, httpStatus, ok, java.util.Collections.emptyList());
+        }
+        Result(String context, String status, int httpStatus, boolean ok, List<WebEvidence.Source> sources) {
+            this.context = context; this.status = status; this.httpStatus = httpStatus; this.ok = ok;
+            this.sources = java.util.Collections.unmodifiableList(new ArrayList<>(sources));
+        }
+    }
+    private static String clean(String value) { return value == null ? "" : value.trim(); }
+    private static URI uri(String value) {
+        try { return new URI(clean(value)); } catch (Exception ignored) { return URI.create(""); }
+    }
+    private static boolean official(String value) {
+        return "api.deepseek.com".equalsIgnoreCase(uri(value).getHost());
+    }
     public static boolean isDeepSeekSearch(String searchUrl) {
-        if (searchUrl == null || searchUrl.trim().isEmpty()) return true;
-        String s = searchUrl.trim().toLowerCase(java.util.Locale.ROOT);
-        return s.contains("deepseek.com") || s.contains("/tools/search");
+        String url = clean(searchUrl);
+        return url.isEmpty() || official(url) || clean(uri(url).getPath()).endsWith("/tools/search");
     }
-
-    /**
-     * 用给定的 Key 检索 {@code query}，返回已经排好版、可以直接拼进提示词的纯文本。
-     * 任何失败都返回空串（见类注释）。空串 = 「没有检索到资料」，不是错误。
-     */
+    /** Keep explicitly configured backends; upgrade the old keyless Tavily default. */
+    public static String searchEndpoint(String searchUrl, String searchKey, String aiBaseUrl) {
+        String url = clean(searchUrl);
+        boolean oldDefault = (url.equals("https://api.tavily.com/search") || url.equals("https://api.tavily.com/search/"))
+                && clean(searchKey).isEmpty();
+        if (url.isEmpty() || oldDefault && official(aiBaseUrl))
+            return official(aiBaseUrl) ? "https://api.deepseek.com/v1/tools/search" : "";
+        if (official(url)) return "https://api.deepseek.com/v1/tools/search";
+        return url;
+    }
     public static String search(String searchUrl, String searchKey, String aiBaseUrl, String aiApiKey,
-                                String query, int timeoutMs) {
-        if (query == null || query.trim().isEmpty()) return "";
-        int timeout = Math.max(5_000, timeoutMs);
+            String query, int timeoutMs) {
+        LocalDate day = LocalDate.now(); java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        List<String> blocks = new ArrayList<>();
+        for (String planned : newsQueries(query, day)) {
+            String block = verified(searchUrl, searchKey, aiBaseUrl, aiApiKey, planned, timeoutMs, day, zone);
+            blocks.add(block);
+            JsonObject result = JsonParser.parseString(block).getAsJsonObject();
+            if (result.getAsJsonArray("news").size() > 0 || result.get("status").getAsString().equals("unavailable")) break;
+        }
+        return WebEvidence.merge(blocks, day, zone);
+    }
+
+    /** Re-read at most two pages, then pass only dated, relevant source excerpts. */
+    public static String verified(String searchUrl, String searchKey, String aiBaseUrl, String aiApiKey,
+            String query, int timeoutMs, LocalDate day, java.time.ZoneId zone) {
+        Result result = lookup(searchUrl, searchKey, aiBaseUrl, aiApiKey, query, timeoutMs, true);
+        String endpoint = searchEndpoint(searchUrl, searchKey, aiBaseUrl);
+        String key = clean(searchKey);
+        if (key.isEmpty() && sameOrigin(endpoint, aiBaseUrl)) key = clean(aiApiKey);
+        final String token = key;
+        WebEvidence.Fetcher fetcher = isDeepSeekSearch(endpoint) && endpoint.endsWith("/tools/search") && !key.isEmpty()
+                ? url -> fetch(endpoint.substring(0, endpoint.length() - 6) + "fetch", token, url, Math.min(timeoutMs, 3500)) : null;
+        JsonObject organized = JsonParser.parseString(WebEvidence.organize(result.sources, query, day, zone, fetcher)).getAsJsonObject();
+        organized.addProperty("search_status", result.status);
+        organized.addProperty("status", !result.ok ? "unavailable" : organized.getAsJsonArray("news").size() == 0 ? "no_usable_sources" : "source_date_checked");
+        return organized.toString();
+    }
+    /** Reports the real HTTP outcome, independently of the model's claims. */
+    public static Result lookup(String searchUrl, String searchKey, String aiBaseUrl, String aiApiKey,
+            String query, int timeoutMs) {
+        return lookup(searchUrl, searchKey, aiBaseUrl, aiApiKey, query, timeoutMs, false);
+    }
+    private static Result lookup(String searchUrl, String searchKey, String aiBaseUrl, String aiApiKey,
+            String query, int timeoutMs, boolean needContent) {
+        String endpoint = searchEndpoint(searchUrl, searchKey, aiBaseUrl);
+        if (endpoint.isEmpty()) return new Result("", "未配置搜索服务；DeepSeek 官方地址可复用 AI Key", 0, false);
+        if (clean(query).isEmpty()) return new Result("", "请输入搜索内容", 0, false);
+        boolean deepSeek = isDeepSeekSearch(endpoint);
+        String key = clean(searchKey);
+        // A relay's chat key is never sent to an unrelated search service.
+        if (key.isEmpty() && deepSeek && sameOrigin(endpoint, aiBaseUrl)) key = clean(aiApiKey);
+        if (key.isEmpty()) return new Result("", "未配置搜索 Key", 0, false);
         try {
-            if (isDeepSeekSearch(searchUrl)) {
-                String key = searchKey != null && !searchKey.trim().isEmpty() ? searchKey : aiApiKey;
-                if (key == null || key.trim().isEmpty()) return "";
-                String base = AiEndpoint.chatCompletions(aiBaseUrl);          // …/chat/completions
-                int at = base.lastIndexOf("/chat/completions");
-                base = at > 0 ? base.substring(0, at) : base;
-                return deepSeek(base + "/tools/search", key.trim(), query.trim(), timeout);
+            int timeout = Math.max(1000, Math.min(20_000, timeoutMs));
+            if (!deepSeek) {
+                List<WebEvidence.Source> sources = new WebSearchClient(endpoint, key, timeout).sources(limitQuery(query), RESULTS);
+                String context = sources.stream().map(s -> s.title + "\n来源：" + s.url + "\n" + s.summary)
+                        .collect(java.util.stream.Collectors.joining("\n\n"));
+                return new Result(context, context.isEmpty() ? "搜索成功，暂无结果" : "联网搜索成功", 200, true, sources);
             }
-            if (searchKey == null || searchKey.trim().isEmpty()) return "";
-            return new WebSearchClient(searchUrl, searchKey, timeout).search(query.trim(), RESULTS);
-        } catch (Throwable ignored) {
-            // A search that fails must never take the generation down with it.
-            return "";
+            return deepSeek(endpoint, key, limitQuery(query), timeout, needContent);
+        } catch (Exception failure) {
+            return new Result("", "搜索未完成（" + failure.getClass().getSimpleName() + "），已使用个人偏好推荐", 0, false);
         }
     }
-
-    private static String deepSeek(String endpoint, String key, String query, int timeoutMs) throws IOException {
+    private static boolean sameOrigin(String first, String second) {
+        URI a = uri(first), b = uri(second);
+        return a.getHost() != null && a.getHost().equalsIgnoreCase(b.getHost())
+                && clean(a.getScheme()).equalsIgnoreCase(clean(b.getScheme())) && a.getPort() == b.getPort();
+    }
+    static String limitQuery(String query) {
+        String text = clean(query).replaceAll("\\s+", " ");
+        return text.codePointCount(0, text.length()) <= 128 ? text
+                : text.substring(0, text.offsetByCodePoints(0, 128));
+    }
+    /** Date filters come first so long requests cannot truncate them away. */
+    public static String limitDatedQuery(String request, LocalDate day) {
+        boolean today = clean(request).matches("(?is).*(今天|今日|当日|today).*");
+        return limitQuery("after:" + day.minusDays(today ? 1 : 7) + " before:" + day.plusDays(1) + " " + clean(request));
+    }
+    public static List<String> newsQueries(String request, LocalDate day) {
+        String topic = clean(request).replaceAll("(?i)(?:-?site|after|before):\\S+|\\bOR\\b", " ").replaceAll("\\s+", " ");
+        String dates = "after:" + day.minusDays(topic.matches("(?is).*(今天|今日|当日|today).*") ? 1 : 7) + " before:" + day.plusDays(1) + " ";
+        String cn = limitQuery(dates + "site:news.cn OR site:chinanews.com.cn " + topic);
+        String global = limitQuery(dates + "site:billboard.com OR site:grammy.com " + topic);
+        return topic.matches(".*[\\p{IsHan}].*") ? java.util.Arrays.asList(cn, global) : java.util.Arrays.asList(global, cn);
+    }
+    private static Result deepSeek(String endpoint, String key, String query, int timeout, boolean needContent) throws IOException {
         JsonObject body = new JsonObject();
-        body.addProperty("query", query);
-        body.addProperty("count", RESULTS);
-        // The long summary is what a model reads; the full page text would bloat
-        // the prompt for little gain.
-        body.addProperty("need_content", false);
-        byte[] bytes = new Gson().toJson(body).getBytes(StandardCharsets.UTF_8);
-        HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
-        c.setRequestMethod("POST");
-        c.setDoOutput(true);
-        c.setConnectTimeout(timeoutMs);
-        c.setReadTimeout(timeoutMs);
-        c.setRequestProperty("Content-Type", "application/json");
-        c.setRequestProperty("Authorization", "Bearer " + key);
-        try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
-        int code = c.getResponseCode();
-        String response = read(code >= 400 ? c.getErrorStream() : c.getInputStream());
-        if (code < 200 || code >= 300) return "";
-        JsonObject root = JsonParser.parseString(response).getAsJsonObject();
-        JsonArray results = root.getAsJsonArray("results");
-        if (results == null || results.size() == 0) return "";
-        StringBuilder out = new StringBuilder();
-        int index = 0;
-        for (JsonElement element : results) {
-            if (!element.isJsonObject()) continue;
-            JsonObject row = element.getAsJsonObject();
-            String title = string(row, "title");
-            String url = string(row, "url");
-            String summary = string(row, "summary");
-            if (summary.isEmpty()) summary = string(row, "snippet");
-            if (title.isEmpty() && summary.isEmpty()) continue;
-            out.append(++index).append(". ").append(title);
-            if (!url.isEmpty()) out.append("（").append(url).append("）");
-            out.append('\n');
-            if (!summary.isEmpty()) out.append(summary).append('\n');
-            if (index >= RESULTS) break;
-        }
-        return out.toString().trim();
+        body.addProperty("query", query); body.addProperty("count", RESULTS);
+        body.addProperty("need_content", needContent);
+        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+        try {
+            connection.setRequestMethod("POST"); connection.setDoOutput(true);
+            connection.setConnectTimeout(timeout); connection.setReadTimeout(timeout);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + key);
+            try (OutputStream out = connection.getOutputStream()) { out.write(bytes); }
+            int code = connection.getResponseCode();
+            String response = read(code >= 400 ? connection.getErrorStream() : connection.getInputStream());
+            if (code != 200) return new Result("", failureStatus(code), code, false);
+            JsonArray results = JsonParser.parseString(response).getAsJsonObject().getAsJsonArray("results");
+            if (results == null) return new Result("", "搜索响应格式不匹配（缺少 results）", code, false);
+            StringBuilder out = new StringBuilder(); int count = 0;
+            List<WebEvidence.Source> sources = new ArrayList<>();
+            for (JsonElement element : results) {
+                if (!element.isJsonObject()) continue;
+                JsonObject row = element.getAsJsonObject();
+                String title = string(row, "title"), summary = string(row, "summary");
+                if (summary.isEmpty()) summary = string(row, "snippet");
+                if (title.isEmpty() && summary.isEmpty()) continue;
+                out.append(++count).append(". ").append(clip(title, 180)).append('\n');
+                out.append("来源：").append(clip(string(row, "url"), 600)).append('\n');
+                String date = string(row, "date");
+                if (!date.isEmpty()) out.append("发布时间：").append(date).append('\n');
+                out.append(clip(summary, 800)).append('\n');
+                int authority = -1;
+                try { authority = row.get("authority").getAsInt(); } catch (Exception ignored) {}
+                sources.add(new WebEvidence.Source(title, string(row, "url"), date, summary,
+                        clip(string(row, "content"), 18000), authority));
+                if (count >= RESULTS) break;
+            }
+            return new Result(out.toString().trim(), count == 0 ? "搜索成功，暂无结果" : "联网搜索成功 · " + count + " 条来源", code, true, sources);
+        } finally { connection.disconnect(); }
     }
-
+    private static String fetch(String endpoint, String key, String url, int timeout) throws IOException {
+        if (WebEvidence.canonicalUrl(url).isEmpty()) return "";
+        JsonObject request = new JsonObject(); request.addProperty("url", url);
+        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+        try {
+            connection.setRequestMethod("POST"); connection.setDoOutput(true); connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(Math.max(1000, timeout)); connection.setReadTimeout(Math.max(1000, timeout));
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + key);
+            try (OutputStream out = connection.getOutputStream()) { out.write(request.toString().getBytes(StandardCharsets.UTF_8)); }
+            if (connection.getResponseCode() != 200) return "";
+            return WebEvidence.clip(string(JsonParser.parseString(read(connection.getInputStream())).getAsJsonObject(), "content"), 18000);
+        } finally { connection.disconnect(); }
+    }
+    private static String failureStatus(int code) {
+        String reason = code == 401 ? "Key 无效" : code == 402 ? "余额不足" : code == 429 ? "请求过于频繁"
+                : code == 404 ? "搜索接口不存在" : "服务暂不可用";
+        return "联网搜索失败 · HTTP " + code + " · " + reason;
+    }
+    private static String clip(String value, int length) { return value.length() <= length ? value : value.substring(0, length); }
     private static String string(JsonObject row, String key) {
-        JsonElement el = row.get(key);
-        return el != null && el.isJsonPrimitive() ? el.getAsString().trim() : "";
+        JsonElement value = row.get(key);
+        return value != null && value.isJsonPrimitive() ? value.getAsString().trim() : "";
     }
-
-    private static String read(InputStream in) throws IOException {
-        if (in == null) return "";
-        try (InputStream input = in; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+    private static String read(InputStream stream) throws IOException {
+        if (stream == null) return "";
+        try (InputStream in = stream; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[4096];
-            int n;
-            while ((n = input.read(buffer)) >= 0) out.write(buffer, 0, n);
+            for (int n; (n = in.read(buffer)) >= 0;) {
+                out.write(buffer, 0, n);
+                if (out.size() > 2_000_000) throw new IOException("Search response too large");
+            }
             return new String(out.toByteArray(), StandardCharsets.UTF_8);
         }
     }
-
-    /** 需要联网的问题：「最新 / 新歌 / 榜单 / 2026 / 现在流行…」这类模型知识可能过期的询问。 */
     public static boolean wantsFreshness(String request) {
         if (request == null) return false;
-        String s = request.toLowerCase(java.util.Locale.ROOT);
-        String[] cues = { "最新", "最近", "今年", "本月", "本周", "这周", "现在", "当前", "近期",
+        String text = request.toLowerCase(Locale.ROOT);
+        String[] cues = {"最新", "最近", "今年", "本月", "本周", "这周", "现在", "当前", "近期", "今天", "今日", "天气",
                 "新歌", "新专辑", "新发行", "刚发", "刚出", "刚上", "刚发行", "榜单", "排行", "热歌", "热榜",
-                "流行", "火", "爆", "trending", "new release", "latest" };
-        for (String cue : cues) if (s.contains(cue)) return true;
-        // A year in the request usually means "as of now".
-        return s.matches(".*\\b20(2[4-9]|3\\d)\\b.*");
+                "流行", "火", "爆", "音乐事件", "音乐新闻", "trending", "new release", "latest", "weather", "today"};
+        for (String cue : cues) if (text.contains(cue)) return true;
+        return text.matches(".*\\b20(2[4-9]|3\\d)\\b.*");
     }
-
-    /** 检索词：把请求本身加上「歌单」，再补上「新歌 最新」让搜索引擎偏向时效。 */
     public static List<String> queriesFor(String request, List<String> historySample) {
         List<String> out = new ArrayList<>();
-        String base = request == null ? "" : request.trim();
-        if (!base.isEmpty()) {
-            out.add(base + " 歌单 新歌 最新");
-            out.add(base + " 热门歌曲 2026");
-        }
-        // The taste sample's most-played artist is the "what is new from them" lead.
-        if (historySample != null) {
-            for (String row : historySample) {
-                int dash = row == null ? -1 : row.indexOf(" - ");
-                if (dash > 0 && dash + 3 < row.length()) {
-                    out.add(row.substring(dash + 3).trim() + " 新歌");
-                    break;
-                }
+        String base = clean(request);
+        if (!base.isEmpty()) out.add(limitQuery(base));
+        if (historySample != null) for (String row : historySample) {
+            int dash = row == null ? -1 : row.indexOf(" - ");
+            if (dash > 0 && dash + 3 < row.length()) {
+                out.add(limitQuery(row.substring(dash + 3).trim() + " 新歌 最新 " + LocalDate.now())); break;
             }
         }
         return out;

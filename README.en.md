@@ -23,9 +23,9 @@ See the [Chinese README](README.md#界面预览) for all 12 screenshots, includi
 
 - Four visual modes, light/dark themes, cover-based colors, decorative typography, shared-element transitions, and MiniPlayer animations.
 - NetEase QR login, discovery, search, playlists, albums, artists, local audio scanning, and caching.
-- AI music conversations with sentence-by-sentence replies, playable playlist cards, generated follow-up suggestions, and locally persisted conversation history.
+- AI music conversations in every visual mode, with sentence-by-sentence replies, playable playlist cards, generated follow-up suggestions, and locally persisted conversation history. Tap the AI input to open the conversation page.
 - Three daily AI playlists with 20–30 tracks each, guided by listening and collection samples; manual regeneration, editing, reordering, and saving to a NetEase account.
-- Experimental continuous AI DJ with next-batch preparation, recommendation reasons, and mascot transitions.
+- Experimental continuous AI DJ with next-batch preparation, recommendation reasons, and mascot transitions. Tap the mascot to enter or exit AI DJ.
 - Word/line lyrics, translations, animated scrolling, and optional looping MV backgrounds that follow playback state.
 - Local AutoMix rendering, automatic cue points, transition duration and pitch controls, next-track caching, and preparation status.
 - Bilibili search, QR login, favorites, multi-part videos, and audio/video playback.

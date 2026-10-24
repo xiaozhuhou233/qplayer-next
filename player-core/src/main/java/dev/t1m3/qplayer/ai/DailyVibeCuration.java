@@ -63,6 +63,11 @@ public final class DailyVibeCuration {
         return generate(slot, references, existing, recommender, resolver, progress, null, "");
     }
 
+    public static Playlist generateTimed(String theme, String references, Recommender recommender,
+            Resolver resolver, Progress progress) throws Exception {
+        return generate(3, references, java.util.Collections.emptyList(), recommender, resolver, progress, null, theme);
+    }
+
     /** Replace exactly one complete group, without mutating the published catalog on failure. */
     public static Catalog revise(Catalog catalog, int slot, String requirements, String references,
             Recommender recommender, Resolver resolver, Progress progress) throws Exception {
@@ -83,13 +88,14 @@ public final class DailyVibeCuration {
     private static Playlist generate(int slot, String references, List<Playlist> existing,
             Recommender recommender, Resolver resolver, Progress progress, Playlist original,
             String requirements) throws Exception {
-        if (slot < 0 || slot >= 3) throw new IllegalArgumentException("Unknown daily playlist slot");
-        int target = java.util.concurrent.ThreadLocalRandom.current().nextInt(MIN_SONGS, MAX_SONGS + 1);
+        if (slot < 0 || slot > 3) throw new IllegalArgumentException("Unknown daily playlist slot");
+        int minimum = slot == 3 ? 10 : MIN_SONGS;
+        int target = slot == 3 ? 10 : java.util.concurrent.ThreadLocalRandom.current().nextInt(MIN_SONGS, MAX_SONGS + 1);
         // Output schema, search policy and recovery are owned by the same
         // AiClient prompt as AI DJ. This request contains only curation preferences.
         StringBuilder request = new StringBuilder("策展偏好：").append(PERSONA).append("\n")
                 .append("把相近曲风放在同一歌单，按听感连贯排序。")
-                .append(original == null ? ANGLES[slot] : "以当前歌单为基础，优先执行下面的用户修改要求，原来的默认方向不限制本次修改。")
+                .append(original == null ? (slot == 3 ? requirements : ANGLES[slot]) : "以当前歌单为基础，优先执行下面的用户修改要求，原来的默认方向不限制本次修改。")
                 .append('\n');
         if (original != null) {
             request.append("当前歌单：").append(original.name).append(" · ").append(original.summary).append('\n');
@@ -157,10 +163,10 @@ public final class DailyVibeCuration {
                     (System.nanoTime() - matchStart) / 1_000_000L);
             playlist.songs.addAll(matched);
             for (NeteaseSong song : matched) used.add(song.id);
-            if (playlist.songs.size() >= MIN_SONGS) return playlist;
+            if (playlist.songs.size() >= minimum) return playlist;
         }
         if (lastFailure != null) throw lastFailure;
-        throw new IOException("这组暂未匹配到至少 20 首网易云歌曲");
+        throw new IOException("这组暂未匹配到至少 " + minimum + " 首网易云歌曲");
     }
 
     public static Catalog restore(String json, String day, String owner) {
@@ -171,8 +177,8 @@ public final class DailyVibeCuration {
                     || stored.playlists == null) return empty;
             Set<Integer> slots = new HashSet<>();
             for (Playlist playlist : stored.playlists) {
-                if (playlist == null || playlist.slot < 0 || playlist.slot >= 3 || playlist.songs == null
-                        || (!playlist.userEdited && (playlist.songs.size() < MIN_SONGS || playlist.songs.size() > MAX_SONGS))
+                if (playlist == null || playlist.slot < 0 || playlist.slot > 3 || playlist.songs == null
+                        || (!playlist.userEdited && !validSize(playlist))
                         || slots.contains(playlist.slot)) continue;
                 if (playlist.songs.stream().anyMatch(song -> song == null || song.id <= 0)) continue;
                 Set<Long> ids = new HashSet<>();
@@ -208,21 +214,24 @@ public final class DailyVibeCuration {
 
     /** Completion stops automatic generation; each finished group can be shown independently. */
     public static boolean isComplete(Catalog catalog) {
-        return hasValidGroups(catalog) && catalog.playlists.size() == 3;
+        return hasValidGroups(catalog) && catalog.playlists.stream().filter(p -> p.slot < 3).count() == 3;
     }
 
     private static boolean hasValidGroups(Catalog catalog) {
-        if (catalog == null || catalog.playlists == null || catalog.playlists.size() > 3) return false;
+        if (catalog == null || catalog.playlists == null || catalog.playlists.size() > 4) return false;
         Set<Integer> slots = new HashSet<>();
         for (Playlist playlist : catalog.playlists) {
-            if (playlist == null || playlist.slot < 0 || playlist.slot > 2 || !slots.add(playlist.slot)
-                    || playlist.songs == null || (!playlist.userEdited && (playlist.songs.size() < MIN_SONGS
-                    || playlist.songs.size() > MAX_SONGS))) return false;
+            if (playlist == null || playlist.slot < 0 || playlist.slot > 3 || !slots.add(playlist.slot)
+                    || playlist.songs == null || (!playlist.userEdited && !validSize(playlist))) return false;
             Set<Long> ids = new HashSet<>();
             for (NeteaseSong song : playlist.songs)
                 if (song == null || song.id <= 0 || !ids.add(song.id)) return false;
         }
         return true;
+    }
+    private static boolean validSize(Playlist playlist) {
+        return playlist.slot == 3 ? playlist.songs.size() == 10
+                : playlist.songs.size() >= MIN_SONGS && playlist.songs.size() <= MAX_SONGS;
     }
     private DailyVibeCuration() {}
 }

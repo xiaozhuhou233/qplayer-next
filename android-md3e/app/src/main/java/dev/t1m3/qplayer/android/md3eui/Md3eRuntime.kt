@@ -164,6 +164,7 @@ internal data class Md3ePageNavigation(val revision: Long = 0L, val target: Stri
 /** Process-owned playback; neither backend nor service callbacks retain an Activity. */
 internal class Md3eRuntime private constructor(context: Context) {
     private val app = context.applicationContext
+    suspend fun liveEvidence(request: String, daily: Boolean = false): String = Md3eLiveEvidence.collect(app, settings, request, daily = daily)
     private val handler = Handler(Looper.getMainLooper())
     val audioBackend = AndroidAudioBackend(app).apply {
         setVideoPlaybackVisible(false)
@@ -218,6 +219,8 @@ internal class Md3eRuntime private constructor(context: Context) {
     var notice by mutableStateOf<String?>(null)
     /** 设置 → AI 的「AI 对话测试」对话框开关（Md3eAiChatProbe.kt）。 */
     var aiChatProbeRequested by mutableStateOf(false)
+    var aiSearchProbeRequested by mutableStateOf(false)
+    var weatherLocationRequested by mutableStateOf(false)
     var bili by mutableStateOf(BiliState())
         private set
     val videoSlots = androidx.compose.runtime.mutableStateMapOf<Int, androidx.compose.ui.geometry.Rect>()

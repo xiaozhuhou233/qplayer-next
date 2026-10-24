@@ -8,11 +8,20 @@ import java.util.List;
 public final class LyricTiming {
     private LyricTiming() {}
 
+    /** Keep the highlight moving through an intra-line gap until the next word.
+     * This is a rendering interval only: source timestamps, overlapping vocals
+     * and the word-lift animation must retain their original timing. Pass the
+     * source end as nextStartMs for the final word, never the next line's start.
+     */
+    public static long continuousSweepEndMs(long startMs, long endMs, long nextStartMs) {
+        long end = Math.max(startMs + 1L, endMs);
+        return nextStartMs > startMs ? Math.max(end, nextStartMs) : end;
+    }
+
     public static boolean hasWordTiming(LyricLine line) {
         if (line == null) return false;
         long firstStart = Long.MIN_VALUE;
         long firstEnd = Long.MIN_VALUE;
-        int timedSegments = 0;
         for (Syllable s : line.syllables) {
             if (s.durationMs <= 0 || s.text == null || s.text.trim().isEmpty()) continue;
             long end = s.endMs();
@@ -26,9 +35,10 @@ public final class LyricTiming {
                 // the whole line as ordinary LRC.
                 return true;
             }
-            timedSegments++;
         }
-        return timedSegments > 1;
+        // Several fragments sharing one interval are one line/group, not
+        // independently timed words (including text split for shaping).
+        return false;
     }
 
     public static int wordTimedLines(List<LyricLine> lines) {

@@ -60,6 +60,8 @@ import kotlin.math.sqrt
 
 // Mirrors the legacy SealMotion navigation recipes and SharedPageMotion scope.
 private val emphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+internal const val Md3eChromeMotionMillis = 420
+internal val Md3eChromeEasing = CubicBezierEasing(.4f, 0f, .2f, 1f)
 private val emphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 1f, 1f)
 private val emphasize = PathEasing(Path().apply {
     moveTo(0f, 0f)

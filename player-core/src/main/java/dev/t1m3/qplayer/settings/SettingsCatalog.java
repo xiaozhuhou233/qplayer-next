@@ -290,12 +290,20 @@ public final class SettingsCatalog {
         out.add(SettingSpec.toggle("aiGeminiKnowledgeOnly", AI, "Gemini 强制使用知识库", false)
                 .desc("不联网，使用模型知识推荐")
                 .build());
-        out.add(SettingSpec.text("aiWebSearchUrl", AI, "搜索 API 地址", "https://api.tavily.com/search")
-                .desc("默认 Tavily，支持兼容接口")
+        out.add(SettingSpec.text("aiWebSearchUrl", AI, "搜索 API 地址", "")
+                .desc("留空跟随 DeepSeek；也支持 Tavily")
                 .build());
         out.add(SettingSpec.text("aiWebSearchKey", AI, "搜索 API Key", "")
-                .desc("填写自己的 Key，仅本机保存")
+                .desc("DeepSeek 同地址可留空复用 AI Key")
                 .build());
+        out.add(SettingSpec.action("aiSearchProbe", AI, "联网搜索测试", "测试")
+                .desc("查看真实搜索状态和来源").onlyOn(ANDROID).build());
+        out.add(SettingSpec.toggle("aiDailyContextEnabled", AI, "今日天气与音乐事件", true)
+                .desc("一组每日歌单参考实时资料").onlyOn(ANDROID).build());
+        out.add(SettingSpec.action("aiWeatherLocation", AI, "天气位置", "授权位置")
+                .desc("使用系统大致位置，拒绝不影响推荐").onlyOn(ANDROID).build());
+        out.add(SettingSpec.text("aiWeatherFallbackCity", AI, "备用天气城市", "")
+                .desc("定位失败时使用，格式：浙江省/杭州市").onlyOn(ANDROID).build());
 
         out.add(SettingSpec.toggle("aiForceKnowledge", AI, "强制使用知识库", false)
                 .desc("搜索失败时使用模型知识")
@@ -313,8 +321,13 @@ public final class SettingsCatalog {
                 .desc("0 柔和 · 1 标准 · 2 鲜艳")
                 .build());
         out.add(SettingSpec.segmented("paletteStyle", PALETTE, "调色板风格", 0,
-                "Tonal Spot", "Vibrant", "Expressive", "Fruit Salad")
+                "TONAL_SPOT", "VIBRANT", "EXPRESSIVE", "FRUIT_SALAD", "SPRITZ", "RAINBOW")
                 .desc("选择 Material 3 配色方案")
+                .build());
+        out.add(SettingSpec.segmented("palettePreset", PALETTE, "预设颜色", 0,
+                "紫藤", "海蓝", "青绿", "苔绿", "暖橙", "珊瑚", "玫红", "石墨")
+                .desc("用于 RAINBOW 和 FRUIT_SALAD")
+                .onlyOn(ANDROID)
                 .build());
 
         // ---- 歌词 -----------------------------------------------------------
@@ -344,7 +357,7 @@ public final class SettingsCatalog {
         out.add(SettingSpec.toggle("lyricLinearAnim", LYRIC, "非逐字歌词线性动画", false)
                 .desc("关闭时整行一起点亮")
                 .build());
-        out.add(SettingSpec.toggle("lyricEdgeBlur", LYRIC, "边缘模糊", false)
+        out.add(SettingSpec.toggle("lyricEdgeBlur", LYRIC, "边缘模糊", true)
                 .desc("模糊非当前歌词，较耗电")
                 .build());
         out.add(SettingSpec.toggle("lyricMd3Color", LYRIC, "MD3 歌词颜色", false)

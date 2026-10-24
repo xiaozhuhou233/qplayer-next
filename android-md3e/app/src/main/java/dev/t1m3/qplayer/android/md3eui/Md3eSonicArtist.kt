@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -48,14 +49,15 @@ internal fun SonicArtistDetail(state: ArtistDetailState, playback: PlaybackState
                     Box(Modifier.widthIn(max = 440.dp).fillMaxWidth().aspectRatio(1.75f).shadow(8.dp, flower).clip(flower)
                         .background(colors.primaryContainer),
                         contentAlignment = Alignment.Center) {
-                        if (heroImage.isNotBlank()) Artwork(heroImage, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 1024)
+                        if (heroImage.isNotBlank()) Artwork(heroImage, Modifier.fillMaxSize(), corner = 0.dp,
+                            requestSize = 1024, alignment = BiasAlignment(0f, -.35f))
                         else Icon(Md3eIcons.Person, null, Modifier.size(88.dp), tint = colors.onPrimaryContainer)
                     }
                     Spacer(Modifier.height(12.dp))
-                    Surface(shape = CircleShape, color = colors.secondaryContainer.copy(alpha = .65f)) {
+                    Surface(shape = CircleShape, color = colors.secondaryContainer, contentColor = colors.onSecondaryContainer) {
                         Row(Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.size(6.dp).background(colors.primary, CircleShape))
+                            Box(Modifier.size(6.dp).background(colors.onSecondaryContainer, CircleShape))
                             Text("ARTIST SPOTLIGHT", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         }
                     }
@@ -151,7 +153,7 @@ internal fun SonicArtistDetail(state: ArtistDetailState, playback: PlaybackState
 private fun SonicArtistPuck(icon: ImageVector, description: String, label: String, enabled: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(54.dp),
-            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .6f),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer)) {
             Icon(icon, description, Modifier.size(24.dp))
         }

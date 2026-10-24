@@ -8,6 +8,9 @@ import dev.t1m3.qplayer.ai.AiClient
 import dev.t1m3.qplayer.ai.AiEndpoint
 import dev.t1m3.qplayer.ai.AiReference
 import dev.t1m3.qplayer.ai.DailyVibeCuration
+import dev.t1m3.qplayer.ai.DailyMusicContext
+import dev.t1m3.qplayer.ai.WebLookup
+import org.json.JSONObject
 import dev.t1m3.qplayer.bridge.PlayerController
 import dev.t1m3.qplayer.netease.NeteaseClient
 import dev.t1m3.qplayer.netease.dto.NeteaseSong
@@ -32,11 +35,15 @@ internal data class DailyVibeState(
     val actionMessage: String = "",
     val actionError: String = "",
     val actionSlot: Int? = null,
+    val liveStatus: String = "",
 )
 
 /** Process-owned job survives route changes and never borrows the active DJ request. */
 internal class Md3eDailyVibes(context: Context, private val controller: PlayerController,
     private val settings: SettingsCore) {
+    private val application = context.applicationContext
+    val timed = Md3eTimedVibe(application, controller, settings)
+    val playlists: List<DailyVibeCuration.Playlist> get() = state.playlists + listOfNotNull(timed.playlist)
     private val prefs = context.applicationContext.getSharedPreferences("md3e_daily_vibes", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var job: Job? = null
@@ -53,6 +60,9 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
     fun regenerate() = start(manual = true, fresh = true)
 
     fun revise(slot: Int, requirements: String): Boolean {
+        if (slot == 3 && requirements.isNotBlank() && !timed.loading && timed.playlist != null) {
+            timed.ensure(manual = true, requirements = requirements); return true
+        }
         if (requirements.isBlank() || job?.isActive == true || state.savingSlot != null || state.day != LocalDate.now().toString()
             || state.playlists.none { it.slot == slot }) return false
         start(manual = true, fresh = false, edit = slot to requirements.trim())
@@ -62,6 +72,7 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
     /** Wait for this exact revision, not a later refresh/account's result. */
     suspend fun reviseForConversation(original: DailyVibeCuration.Playlist, day: String,
         requirements: String): DailyVibeCuration.Playlist {
+        if (original.slot == 3) return timed.reviseForConversation(original, requirements)
         if (state.day != day || state.playlists.none { it === original })
             throw java.io.IOException("这组歌单已更新，请返回主页重新长按打开")
         if (!revise(original.slot, requirements))
@@ -82,27 +93,33 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
         else ensure(retry = true)
     }
 
-    private fun catalog() = DailyVibeCuration.Catalog().apply {
+    private fun catalog(slot: Int = -1): DailyVibeCuration.Catalog = if (slot == 3) timed.catalog() else DailyVibeCuration.Catalog().apply {
         day = state.day; owner = identity.substringAfter(':')
         playlists = state.playlists.toMutableList()
     }
 
     private fun persist(catalog: DailyVibeCuration.Catalog): Boolean {
+        if (catalog.playlists.any { it.slot == 3 }) return timed.persist(catalog)
         if (!prefs.edit().putString("catalog", DailyVibeCuration.encode(catalog)).commit()) return false
         state = state.copy(playlists = catalog.playlists.toList(), completedCount = catalog.playlists.size)
         return true
     }
 
     fun updateSongs(original: DailyVibeCuration.Playlist, songs: List<NeteaseSong>): Boolean {
-        if (state.loading || state.savingSlot != null || state.playlists.none { it === original }
-            || state.day != LocalDate.now().toString() || accountId != controller.aiRecommendationAccountId()) return false
-        val updated = DailyVibeCuration.withSongs(catalog(), original.slot, songs)
+        if (state.loading || state.savingSlot != null || playlists.none { it === original }
+            || (original.slot != 3 && state.day != LocalDate.now().toString()) || accountId != controller.aiRecommendationAccountId()) return false
+        val updated = DailyVibeCuration.withSongs(catalog(original.slot), original.slot, songs)
         if (!persist(updated)) { state = state.copy(actionError = "无法保存歌曲修改，请重试", actionSlot = original.slot); return false }
         state = state.copy(actionMessage = "歌单已更新", actionError = "", actionSlot = original.slot)
         return true
     }
 
     fun forgetSavedPlaylist(id: Long) {
+        timed.playlist?.takeIf { it.savedPlaylistId == id }?.let { playlist ->
+            val snapshot = DailyVibeCuration.withSongs(timed.catalog(), 3, playlist.songs)
+            snapshot.playlists.single().apply { savedPlaylistId = 0; savedSongIds = mutableListOf() }
+            timed.persist(snapshot)
+        }
         val current = catalog()
         var updated = current
         for (playlist in current.playlists.filter { it.savedPlaylistId == id }) {
@@ -121,7 +138,7 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
             ensure(); return
         }
         if (state.loading || state.savingSlot != null
-            || state.playlists.none { it === original } || name.isBlank()) return
+            || playlists.none { it === original } || name.isBlank()) return
         val run = generation
         val account = controller.aiRecommendationAccountId()
         state = state.copy(savingSlot = original.slot, actionMessage = "正在保存到网易云…", actionError = "", actionSlot = original.slot)
@@ -144,7 +161,7 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
                         withContext(Dispatchers.Main) {
                             // Persist the created id before adding tracks: retry fills the same
                             // playlist rather than creating another empty one after a failure.
-                            val saved = DailyVibeCuration.withSongs(catalog(), original.slot, original.songs)
+                            val saved = DailyVibeCuration.withSongs(catalog(original.slot), original.slot, original.songs)
                             saved.playlists.first { it.slot == original.slot }.apply {
                                 savedPlaylistId = id; this.name = name.trim()
                             }
@@ -168,7 +185,7 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
                         throw java.io.IOException("网易云尚未确认全部歌曲和顺序，请稍后重试同步")
                     checkAccount()
                     withContext(Dispatchers.Main) {
-                        val saved = DailyVibeCuration.withSongs(catalog(), original.slot, original.songs)
+                        val saved = DailyVibeCuration.withSongs(catalog(original.slot), original.slot, original.songs)
                         saved.playlists.first { it.slot == original.slot }.apply {
                             savedPlaylistId = id; savedSongIds = desired.toMutableList()
                         }
@@ -316,6 +333,22 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
                         ensureActive()
                         if (catalog.playlists.any { it.slot == slot }) continue
                         try {
+                            val webContext = if (slot == 2 && settings.bool("aiDailyContextEnabled")) {
+                                report("正在查询今日天气与音乐事件…", catalog.playlists.size)
+                                // Obtain evidence once per generation; reuse for matching/retries, never reuse
+                                // legacy whole-day raw snippets or persist location coordinates.
+                                val material = Md3eLiveEvidence.collect(application, settings, "今日天气与音乐事件",
+                                    recent.map { it.artist.orEmpty() }.distinct().take(3), daily = true)
+                                ensureActive()
+                                val facts = JSONObject(material)
+                                val weather = facts.getJSONObject("weather")
+                                val city = weather.optString("place")
+                                withContext(Dispatchers.Main) {
+                                    if (identity == currentIdentity && generation == run)
+                                        state = state.copy(liveStatus = DailyMusicContext.status(material))
+                                }
+                                DailyMusicContext.instructions(LocalDate.parse(day), city, material)
+                            } else ""
                             var requests = 0
                             val playlist = DailyVibeCuration.generate(slot, samples.toString(), catalog.playlists,
                                 { request, references, count ->
@@ -323,7 +356,7 @@ internal class Md3eDailyVibes(context: Context, private val controller: PlayerCo
                                     requests++
                                     report(if (requests == 1) "正在策划第 ${slot + 1}/3 组歌单…"
                                         else "正在重试或补齐第 ${slot + 1}/3 组（$requests/3）…", catalog.playlists.size)
-                                    client.generatePlaylist("", request, count, "", references)
+                                    client.generatePlaylist("", request, count, webContext, references)
                                 }, resolver, { matched, target ->
                                     report("第 ${slot + 1}/3 组：已在网易云匹配 $matched/$target 首", catalog.playlists.size)
                                 })

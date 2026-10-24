@@ -116,17 +116,17 @@ internal fun Md3eMiniPlayerDock(
     playerExpansion: Md3ePlayerExpansionState? = null,
 ) {
     val privateRoam = LocalClaudePrivateRoam.current
-    val enterMillis = if (LocalClaudeDesign.current) ClaudeOneTake.CARRY else 400
-    val exitMillis = if (LocalClaudeDesign.current) ClaudeOneTake.TRAVEL else 320
+    val enterMillis = Md3eChromeMotionMillis
+    val exitMillis = Md3eChromeMotionMillis
     AnimatedVisibility(
         visible = visible && runtime.playback.hasTrack,
         modifier = modifier,
         enter = if (Md3eLowSpecMode.current) androidx.compose.animation.EnterTransition.None else
-            slideInVertically(tween(enterMillis, easing = playerArtworkEasing)) { it } +
-                fadeIn(tween(enterMillis, easing = playerArtworkEasing)),
+            slideInVertically(tween(enterMillis, easing = Md3eChromeEasing)) { it / 2 } +
+                fadeIn(tween(enterMillis, easing = Md3eChromeEasing)),
         exit = if (Md3eLowSpecMode.current) androidx.compose.animation.ExitTransition.None else
-            slideOutVertically(tween(exitMillis, easing = playerArtworkEasing)) { it } +
-                fadeOut(tween(exitMillis, easing = playerArtworkEasing)),
+            slideOutVertically(tween(exitMillis, easing = Md3eChromeEasing)) { it / 2 } +
+                fadeOut(tween(exitMillis, easing = Md3eChromeEasing)),
     ) {
         if (LocalClaudeDesign.current || LocalSonicDesign.current) {
             Md3eMiniPlayer(runtime, onOpen,

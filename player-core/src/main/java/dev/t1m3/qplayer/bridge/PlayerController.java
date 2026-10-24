@@ -1641,7 +1641,8 @@ public final class PlayerController {
     private void prefetchExperimentalAiDjBatch() {
         if (!experimentalAiDjMode || experimentalAiDjSuspended || experimentalAiDjReady != null) return;
         experimentalAiDjPrefetchStarted = true;
-        int count = java.util.concurrent.ThreadLocalRandom.current().nextInt(5, 7);
+        // 用户 2026-10-18：最少七首、不设上限 —— 实验 DJ 的每批数量不再卡在 5–7。
+        int count = java.util.concurrent.ThreadLocalRandom.current().nextInt(7, 13);
         String previous = queue.stream().map(t -> t.title).collect(java.util.stream.Collectors.joining("、"));
         experimentalAiDjRequestStarting = true;
         try {
@@ -12429,7 +12430,13 @@ public final class PlayerController {
             if (append) aiContinuationInFlight = false;
             return;
         }
-        final int desiredCount = Math.max(5, count);
+        // 用户 2026-10-18：「放开ai播放列表对于歌曲数目的限制，最少七首，其他的用户要求加几首都不要限制」。
+        // 七首是下限，上限不再设 —— 要 137 首就是 137 首（能到多少由模型和网易云匹配决定，不由某个整数截断）。
+        // 没写数量的请求仍按 AI 那边给的默认值来（那是默认，不是限制）。
+        final int desiredCount = Math.max(7, count);
+        // 请求里点名了数量就照办，没有就沿用默认值（10）——这是提问，不是上限。
+        final int askCount = count > 0 ? count : desiredCount;
+        final int playlistMinSongs = 7;
         // A foreground preview may borrow the generator, but never disables the
         // user's special mode. Cancelling the preview resumes its next batch.
         if (experimentalAiDjMode && !experimentalAiDjRequestStarting) {
@@ -12517,7 +12524,7 @@ public final class PlayerController {
                 for (int attempt = 1; attempt <= 3 && rec == null; attempt++) {
                     if (generation != aiRequestGeneration.get() || Thread.currentThread().isInterrupted()) return;
                     try {
-                        rec = client.generatePlaylist(text, request, desiredCount, webContext, references);
+                        rec = client.generatePlaylist(text, request, askCount, webContext, references);
                     } catch (IOException retryable) {
                         if (generation != aiRequestGeneration.get() || Thread.currentThread().isInterrupted()) return;
                         if (!AiEndpoint.isConnectionFailure(retryable) && !(retryable instanceof AiClient.ResponseFormatException))
@@ -12554,19 +12561,20 @@ public final class PlayerController {
                 Logger.info("ai playlist: references {} ms — generated {} song(s) in {} ms — matched {} real track(s) in {} ms",
                         genStart - prepareStart, rec.songs.size(), matchedStart - genStart, resolved.size(),
                         System.currentTimeMillis() - matchedStart);
-                if (resolved.size() < 5) {
+                if (resolved.size() < playlistMinSongs) {
                     // 兜底：严格规则配到的太少时，只放行「歌名精确、非翻唱/现场」的候选，
                     // 目标是让歌单能出来，而不是把翻唱塞进来。
                     for (AiPlaylistResult.Song x : rec.songs) {
                         if (generation != aiRequestGeneration.get()) return;
-                        if (resolved.size() >= Math.min(desiredCount, 5)) break;
+                        if (resolved.size() >= desiredCount) break;
                         List<NeteaseSong> loose = netease.searchAiSongs(x.title, 10);
                         NeteaseSong match = bestAiSongMatchLoose(loose, x.title, x.artist);
                         if (match != null && !(excludeLiked && likedIds.contains(match.id))
                                 && !containsId(resolved, match.id)) resolved.add(match);
                     }
                 }
-                if (resolved.size() < 5) throw new IllegalStateException("网易云未匹配到至少五首推荐歌曲，请重试");
+                if (resolved.size() < playlistMinSongs) throw new IllegalStateException(
+                        "网易云只匹配到 " + resolved.size() + " 首，至少需要 " + playlistMinSongs + " 首，请重试");
                 // ⚠️ Round 35 REMOVED the interleave step that round 34 put here — the user:
                 // 「也不用非要是中英文穿插」. The prompt still asks for a natural mix, but the order the
                 // model returned is the order the listener gets, and {@code PlaylistMixer} is kept (with

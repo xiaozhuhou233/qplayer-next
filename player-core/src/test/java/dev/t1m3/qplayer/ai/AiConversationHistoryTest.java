@@ -52,6 +52,27 @@ public class AiConversationHistoryTest {
         assertTrue(store.load(13).sessions.isEmpty());
     }
 
+    @Test public void oldPendingQuotesAreDiscardedButSentCardsAndDraftsSurvive() throws Exception {
+        AiConversationHistory store = new AiConversationHistory(folder.newFolder());
+        AiConversationHistory.Archive archive = transcript("修改旧卡片");
+        AiConversationHistory.Session session = archive.sessions.get(0);
+        session.draft = "保留第一首，其他换成女声";
+        com.google.gson.JsonObject old = com.google.gson.JsonParser.parseString(AiConversationHistory.encode(archive)).getAsJsonObject();
+        com.google.gson.JsonObject oldSession = old.getAsJsonArray("sessions").get(0).getAsJsonObject();
+        oldSession.addProperty("attachmentDay", "2026-10-19");
+        oldSession.add("attachment", oldSession.getAsJsonArray("messages").get(0).getAsJsonObject().get("playlist").deepCopy());
+        store.save(1, AiConversationHistory.encode(AiConversationHistory.decode(old.toString())));
+        AiConversationHistory.Session restored = store.load(1).sessions.get(0);
+        assertEquals("夜行", restored.messages.get(0).playlist.name);
+        assertEquals(123, restored.messages.get(0).playlist.songs.get(0).id);
+        assertEquals("保留第一首，其他换成女声", restored.draft);
+        com.google.gson.JsonObject saved = com.google.gson.JsonParser.parseString(
+                AiConversationHistory.encode(store.load(1))).getAsJsonObject()
+                .getAsJsonArray("sessions").get(0).getAsJsonObject();
+        assertFalse(saved.has("attachment"));
+        assertFalse(saved.has("attachmentDay"));
+    }
+
     @Test public void interruptedWriteCannotReplaceLastCompleteSnapshot() throws Exception {
         File directory = folder.newFolder();
         AiConversationHistory store = new AiConversationHistory(directory);

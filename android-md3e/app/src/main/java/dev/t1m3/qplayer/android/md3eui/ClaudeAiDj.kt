@@ -75,7 +75,8 @@ internal class ClaudeAiDjState {
     fun open(text: String, randomMode: Boolean, initialCount: Int) {
         if (phase == "running" || shown) return
         prompt = text.trim(); random = randomMode
-        count = initialCount.coerceIn(5, 40).toFloat()
+        // 下限 7、不设上限（用户 2026-10-18：「最少七首…加几首都不要限制」）。
+        count = initialCount.coerceAtLeast(7).toFloat()
         source = if (randomMode) logoBounds else inputBounds
         sourceLayer = if (randomMode) logoLayer else inputLayer
         outputFinished = false; ownsRequest = false; error = ""; progress = ""; output = ""; songs = emptyList()
@@ -106,7 +107,7 @@ internal fun ClaudeAiDjInput(runtime: Md3eRuntime, modifier: Modifier = Modifier
         }
     }
     Row(modifier.fillMaxWidth().claudeEntrance(1), verticalAlignment = Alignment.CenterVertically) {
-        if (LocalSonicDesign.current && conversation != null) {
+        if (conversation != null) {
             Surface(onClick = { keyboard?.hide(); focus.clearFocus(); conversation.show() },
                 modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -140,10 +141,10 @@ internal fun ClaudeAiDjInput(runtime: Md3eRuntime, modifier: Modifier = Modifier
                 if (!dj.shown) logoLayer.record { this@drawWithContent.drawContent() }
                 drawContent()
             }
-            .semantics { contentDescription = "AI DJ 随机推荐" }
+            .semantics { contentDescription = if (runtime.experimentalAiDjActive) "退出 AI DJ" else "进入 AI DJ" }
             .claudeClickable(enabled = dj.phase != "running", role = Role.Button,
-                onClickLabel = "随机推荐", onLongClickLabel = "进入或退出实验性 AI DJ 模式",
-                onLongClick = {
+                onClickLabel = if (runtime.experimentalAiDjActive) "退出 AI DJ" else "进入 AI DJ",
+                onClick = {
                     keyboard?.hide(); focus.clearFocus()
                     runtime.play {
                         if (experimentalAiDjActive.peek() == true) stopExperimentalAiDj()
@@ -151,11 +152,7 @@ internal fun ClaudeAiDjInput(runtime: Md3eRuntime, modifier: Modifier = Modifier
                             runtime.settings.str("aiApiKey"), runtime.settings.str("aiModel"),
                             runtime.settings.bool("aiForceKnowledge"))
                     }
-                }, onClick = {
-                keyboard?.hide(); focus.clearFocus()
-                dj.mascotFrame = mascotCapture.capture()?.asImageBitmap()
-                dj.open("", true, runtime.settings.intOf("aiTasteCount").let { if (it > 0) it else 20 })
-            }), contentAlignment = Alignment.Center) {
+                }), contentAlignment = Alignment.Center) {
             Md3eAiMascot(Modifier.size(48.dp), AiDjMascotStage.Home, mascotCapture, running = !dj.shown)
         }
     }
@@ -198,9 +195,10 @@ internal fun ClaudeAiDjHost(runtime: Md3eRuntime, dj: ClaudeAiDjState,
             dj.error = "请先在设置中填写 AI API 地址、Key 和模型名称。"; dj.phase = "error"
             return@LaunchedEffect
         }
-        val count = if (dj.random) dj.count.roundToInt().coerceIn(5, 40) else
-            (Regex("(\\d{1,3})\\s*(首|首歌|songs?)?", RegexOption.IGNORE_CASE)
-                .find(dj.prompt)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 10).coerceIn(5, 100)
+        // 下限 7、不设上限：请求里写几首就是几首；没写数量时才用默认 10（默认不是限制）。
+        val count = if (dj.random) dj.count.roundToInt().coerceAtLeast(7) else
+            (Regex("""(\d{1,4})\s*(首|首歌|songs?)?""", RegexOption.IGNORE_CASE)
+                .find(dj.prompt)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 10).coerceAtLeast(7)
         val request = if (dj.random) "主要根据收藏歌单和听歌历史选曲，以常听歌手和相近曲风为主，在偏好范围内随机推荐真实歌曲；保留少量风格相近的新歌或新发现，可包含熟悉的挚爱，不为了随机性混入无关流派。" else dj.prompt
         dj.outputFinished = false
         dj.error = ""; dj.output = ""; dj.songs = emptyList()

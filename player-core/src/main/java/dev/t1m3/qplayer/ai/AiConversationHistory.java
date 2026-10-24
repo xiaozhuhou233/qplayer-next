@@ -27,8 +27,6 @@ public final class AiConversationHistory {
         public String title = "";
         public long updatedAt;
         public String draft = "";
-        public String attachmentDay = "";
-        public Playlist attachment;
         public List<Message> messages = new ArrayList<>();
         public List<String> suggestions = new ArrayList<>();
     }
@@ -66,7 +64,6 @@ public final class AiConversationHistory {
                     if (message.error == null) message.error = "";
                     validate(message.playlist);
                 }
-                validate(session.attachment);
             }
             return archive;
         } catch (RuntimeException error) { throw new IOException("无法读取对话历史", error); }

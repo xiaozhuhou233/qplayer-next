@@ -22,7 +22,7 @@ public class AiClientPlaylistTest {
                         + "\"songs\":[[\"晴天\",\"周杰伦\",\"延续你常听的华语旋律，适合轻松时刻\"],"
                         + "[\"Yellow\",\"Coldplay\",\"温暖的吉他氛围呼应本次轻松要求\"]]}")) {
             AiPlaylistResult result = gateway.client().generatePlaylist("我喜欢的音乐：晴天 - 周杰伦",
-                    "搜索最新的轻松歌曲", 6, "SEARCH_RESULT_MUST_NOT_BE_SENT",
+                    "搜索最新的轻松歌曲", 6, "来源：官方音乐新闻 · 2026-10-21",
                     "我的听歌历史：晴天 - 周杰伦\n上一张歌单：Yellow - Coldplay");
             assertEquals(2, result.songs.size());
             assertEquals("晚风", result.playlistName);
@@ -34,8 +34,8 @@ public class AiClientPlaylistTest {
             JsonObject request = gateway.requests.get(0);
             String system = request.getAsJsonArray("messages").get(0).getAsJsonObject().get("content").getAsString();
             String user = request.getAsJsonArray("messages").get(1).getAsJsonObject().get("content").getAsString();
-            assertTrue("search ban applies without knowledge-only setting", system.contains("禁止联网"));
-            assertTrue(system.contains("搜索工具"));
+            assertTrue(system.contains("联网由应用检索"));
+            assertTrue(system.contains("不虚构天气"));
             assertTrue(system.contains("以它们为主要选曲依据"));
             assertTrue(system.contains("大部分歌曲贴合历史与收藏"));
             assertTrue(system.contains("仅保留少量"));
@@ -47,7 +47,7 @@ public class AiClientPlaylistTest {
             assertTrue(user.contains("我的听歌历史"));
             assertTrue(user.contains("我喜欢的音乐"));
             assertTrue(user.contains("上一张歌单"));
-            assertFalse(user.contains("SEARCH_RESULT_MUST_NOT_BE_SENT"));
+            assertTrue(user.contains("来源：官方音乐新闻 · 2026-10-21"));
             assertFalse(user.contains("null"));
             assertNoTokenLimit(request);
             assertFalse(request.has("reasoning_effort"));
@@ -160,7 +160,7 @@ public class AiClientPlaylistTest {
             assertTrue(system.contains("每次只返回当前一组歌单"));
             assertTrue(system.contains("title、artist、reason"));
             assertTrue(system.contains("重新按原始需求和个人样本选曲"));
-            assertTrue(system.contains("禁止联网"));
+            assertTrue(system.contains("联网由应用检索"));
             assertTrue(user.contains("只创建第 2 组温暖歌曲"));
             assertTrue(user.contains("收藏样本：晴天 - 周杰伦"));
             assertTrue(user.contains("听歌历史：Yellow - Coldplay"));

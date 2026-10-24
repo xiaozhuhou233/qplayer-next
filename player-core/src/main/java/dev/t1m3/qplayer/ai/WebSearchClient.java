@@ -28,7 +28,11 @@ public final class WebSearchClient {
     }
 
     public String search(String query, int maxResults) throws IOException {
-        if (apiKey.isEmpty() || query == null || query.trim().isEmpty()) return "";
+        return sources(query, maxResults).stream().map(s -> s.title + "\n来源：" + s.url + "\n" + s.summary)
+                .collect(java.util.stream.Collectors.joining("\n\n"));
+    }
+    public java.util.List<WebEvidence.Source> sources(String query, int maxResults) throws IOException {
+        if (apiKey.isEmpty() || query == null || query.trim().isEmpty()) return java.util.Collections.emptyList();
         JsonObject body = new JsonObject();
         body.addProperty("api_key", apiKey);
         body.addProperty("query", query.trim());
@@ -36,7 +40,7 @@ public final class WebSearchClient {
         body.addProperty("topic", "general");
         body.addProperty("max_results", Math.max(1, Math.min(10, maxResults)));
         body.addProperty("include_answer", false);
-        body.addProperty("include_raw_content", false);
+        body.addProperty("include_raw_content", true);
         byte[] bytes = GSON.toJson(body).getBytes(StandardCharsets.UTF_8);
         HttpURLConnection c = (HttpURLConnection) new URL(endpoint).openConnection();
         c.setRequestMethod("POST"); c.setDoOutput(true);
@@ -47,7 +51,17 @@ public final class WebSearchClient {
         InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
         String response = read(in);
         if (code < 200 || code >= 300) throw new IOException("联网搜索失败（HTTP " + code + "）");
-        return formatResults(response);
+        try {
+            java.util.List<WebEvidence.Source> sources = new java.util.ArrayList<>();
+            JsonArray results = JsonParser.parseString(response).getAsJsonObject().getAsJsonArray("results");
+            if (results != null) for (JsonElement item : results) {
+                if (!item.isJsonObject()) continue;
+                JsonObject row = item.getAsJsonObject();
+                sources.add(new WebEvidence.Source(text(row, "title"), text(row, "url"), text(row, "published_date"),
+                        text(row, "content"), WebEvidence.clip(text(row, "raw_content"), 18000), -1));
+            }
+            return sources;
+        } finally { c.disconnect(); }
     }
 
     private static String formatResults(String response) {

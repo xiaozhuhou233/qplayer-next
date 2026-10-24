@@ -147,7 +147,10 @@ public final class TtmlParser {
                 // group-builder picks them up as sub-lines of this group.
                 // Order is preserved rather than sorted-by-startMs at the end
                 // — see the explicit "no sort" note below.
-                for (LyricLine bg : bgLines) out.add(bg);
+                for (LyricLine bg : bgLines) {
+                    bg.leadStartMs = ll.startMs();
+                    out.add(bg);
+                }
             }
         } catch (Throwable e) {
             Logger.exception(e);
@@ -295,8 +298,15 @@ public final class TtmlParser {
      */
     static long parseClock(String s) {
         if (s == null || s.isEmpty()) return 0L;
+        s = s.trim().toLowerCase(Locale.ROOT);
         String[] parts = s.split(":");
         try {
+            // TTML permits offset times as well as hh:mm:ss clock times.
+            // Treating "1.5s" as zero destroys background/duet grouping.
+            if (s.endsWith("ms")) return Math.round(Double.parseDouble(s.substring(0, s.length() - 2)));
+            if (s.endsWith("s")) return Math.round(Double.parseDouble(s.substring(0, s.length() - 1)) * 1000);
+            if (s.endsWith("m")) return Math.round(Double.parseDouble(s.substring(0, s.length() - 1)) * 60_000);
+            if (s.endsWith("h")) return Math.round(Double.parseDouble(s.substring(0, s.length() - 1)) * 3_600_000);
             double secondsPart = Double.parseDouble(parts[parts.length - 1]);
             long ms = Math.round(secondsPart * 1000.0);
             if (parts.length >= 2) ms += Long.parseLong(parts[parts.length - 2]) * 60_000L;

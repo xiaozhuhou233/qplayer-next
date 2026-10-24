@@ -1,6 +1,5 @@
 package dev.t1m3.qplayer.android.md3eui
 
-import android.util.LruCache
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -8,48 +7,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.t1m3.qplayer.android.graphics.AndroidColorExtractor
-import dev.t1m3.qplayer.color.MaterialExpressivePalette
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 internal data class SonicCardAccent(val fill: Color, val ink: Color)
-private val cardSeedCache = LruCache<String, String>(96)
-private val cardAccentCache = LruCache<String, SonicCardAccent>(192)
-
-/** Independent cover accent: neither its source nor fallback follows the playing song. */
+/** Cards use the same Material roles and cover seed as their destination page. */
 @Composable
 internal fun rememberSonicCardAccent(cover: String): SonicCardAccent {
-    val source = remember(cover) { artworkRequestSource(cover) }
-    val context = LocalContext.current.applicationContext
-    val dark = MaterialTheme.colorScheme.surface.luminance() < .5f
-    return key(source, dark) {
-        val cacheKey = "$source:$dark"
-        val fallback = remember(source, dark) { cardAccentCache.get(cacheKey) ?: sonicColorScheme(dark).let {
-            SonicCardAccent(it.primaryContainer, it.onPrimaryContainer)
-        } }
-        val accent by produceState(initialValue = fallback, source, dark) {
-            val seed = cardSeedCache.get(source) ?: if (source.isNotBlank()) {
-                val bitmap = awaitArtworkBitmap(context, source)
-                withContext(Dispatchers.Default) { AndroidColorExtractor().dominantHex(bitmap) }
-                    ?.also { cardSeedCache.put(source, it) }
-            } else null
-            if (seed != null) value = cardAccentCache.get(cacheKey) ?: withContext(Dispatchers.Default) {
-                sonicAccent(seed, dark)
-            }.also { cardAccentCache.put(cacheKey, it) }
-        }
-        accent
-    }
-}
-
-private fun sonicAccent(seed: String, dark: Boolean): SonicCardAccent {
-    val palette = MaterialExpressivePalette.fromSeed(seed, dark)
-    return SonicCardAccent(Color(palette.primaryContainer), Color(palette.onPrimaryContainer))
+    val colors = rememberSonicArtworkColorScheme(cover)
+    return SonicCardAccent(colors.primaryContainer, colors.onPrimaryContainer)
 }
 
 /** Boxlore's split capsule: large play segment + compact bookmark segment, 3dp seam. */

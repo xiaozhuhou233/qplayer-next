@@ -38,10 +38,13 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(state, lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) state.checkpoint()
+            if (event == Lifecycle.Event.ON_STOP) {
+                state.clearQuote()
+                state.checkpoint()
+            }
         }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); state.checkpoint() }
+        onDispose { lifecycle.removeObserver(observer); state.clearQuote(); state.checkpoint() }
     }
     LaunchedEffect(state.historyOpen) {
         if (state.historyOpen) {

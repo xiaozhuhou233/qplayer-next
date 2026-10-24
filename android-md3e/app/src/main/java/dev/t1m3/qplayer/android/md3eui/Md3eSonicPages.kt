@@ -411,12 +411,12 @@ internal fun SonicLibraryPage(state: PlaylistState, onLogin: () -> Unit, onRefre
 @Composable
 private fun SonicLibrarySpotlight(p: NeteasePlaylist, index: Int, onOpen: () -> Unit, onLongClick: () -> Unit, onPlay: () -> Unit) {
     val lightCard = index % 2 == 1
-    val ink = if (lightCard) MaterialTheme.colorScheme.onSurface else Color.White
+    val ink = if (lightCard) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.inverseOnSurface
     Card(Modifier.width(300.dp).height(310.dp).shadow(6.dp, RoundedCornerShape(28.dp))
         .combinedClickable(onClick = onOpen, onLongClick = onLongClick), shape = RoundedCornerShape(28.dp)) {
         Box(Modifier.fillMaxSize()) {
             Artwork(p.coverThumbPath ?: p.coverUrl.orEmpty(), Modifier.fillMaxSize(), corner = 28.dp)
-            Box(Modifier.fillMaxSize().background(if (lightCard) MaterialTheme.colorScheme.surface.copy(alpha = .85f) else Color(0xD91D1B20)))
+            Box(Modifier.fillMaxSize().background(if (lightCard) MaterialTheme.colorScheme.surface.copy(alpha = .85f) else MaterialTheme.colorScheme.inverseSurface.copy(alpha = .94f)))
             Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.SpaceBetween) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     SonicTag(if (p.owned) "YOUR COLLECTION" else "CURATED SPOTLIGHT", ink.copy(alpha = .15f), ink)
@@ -451,7 +451,7 @@ private fun SonicLibraryShortcut(title: String, subtitle: String, icon: androidx
     Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = .5f)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(42.dp).background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.labelMedium, maxLines = 1)
@@ -540,7 +540,7 @@ internal fun SonicProfilePage(runtime: Md3eRuntime, onLogin: () -> Unit, onBiliL
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(106.dp), contentAlignment = Alignment.Center) {
                     Surface(onClick = onLogin, modifier = Modifier.size(96.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                        Box(contentAlignment = Alignment.Center) { Icon(Md3eIcons.Person, "网易云账号", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary) }
+                        Box(contentAlignment = Alignment.Center) { Icon(Md3eIcons.Person, "网易云账号", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
                     }
                     Surface(onClick = onLogin, shape = CircleShape, color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(30.dp).align(Alignment.BottomEnd)) {

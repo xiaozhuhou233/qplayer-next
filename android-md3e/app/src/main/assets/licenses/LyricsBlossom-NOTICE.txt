@@ -1,0 +1,7 @@
+Lyrics presentation reference: user-supplied ui.zip (Lyrics Blossom).
+
+QPlayer's native lyric presentation ports the lyric-specific spring,
+cascade, word-group and instrumental-break algorithms from
+source_algorithms.js, and presentation behavior from app.js/styles.css.
+TTML/LYS vocal channels, translations and romanization use QPlayer's
+native lyric model. The reference's bundled Apple fonts are not included.

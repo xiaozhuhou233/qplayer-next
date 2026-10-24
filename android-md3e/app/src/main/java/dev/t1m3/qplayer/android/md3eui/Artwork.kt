@@ -75,7 +75,8 @@ private fun getCacheFile(context: Context, source: String): File {
 internal fun Artwork(url: String, modifier: Modifier = Modifier, corner: androidx.compose.ui.unit.Dp = 24.dp,
     contentScale: ContentScale = ContentScale.Crop,
     containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    requestSize: Int = 256) {
+    requestSize: Int = 256,
+    alignment: Alignment = Alignment.Center) {
     val source = remember(url, requestSize) { artworkRequestSource(url, requestSize) }
     val context = LocalContext.current.applicationContext
 
@@ -130,6 +131,7 @@ internal fun Artwork(url: String, modifier: Modifier = Modifier, corner: android
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = contentScale,
+                    alignment = alignment,
                     alpha = imageAlpha
                 )
             }

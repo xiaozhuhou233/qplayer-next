@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +40,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +61,7 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val haptic = LocalHapticFeedback.current
     val listState = key(state.conversationId) { rememberLazyListState() }
     val density = LocalDensity.current
     var composerHeight by remember { mutableStateOf(88.dp) }
@@ -89,7 +94,7 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
         detectTapGestures(onTap = { focusManager.clearFocus(); keyboard?.hide() })
     }) {
         Md3eAiFluidBackground(dark, LocalMd3eRenderingActive.current, Modifier.fillMaxSize())
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FilledTonalIconButton(onClick = { keyboard?.hide(); onBack() },
@@ -107,8 +112,10 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
                     Icon(Md3eIcons.History, "对话历史")
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState,
+            // Keep the toolbar fixed. Only the conversation viewport and its bottom-anchored
+            // composer avoid the keyboard; the window must not pan the entire page as well.
+            Box(Modifier.weight(1f).fillMaxWidth().imePadding().navigationBarsPadding()) {
+            LazyColumn(Modifier.matchParentSize(), state = listState,
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = composerHeight + 20.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp)) {
                 if (state.messages.isEmpty()) item(key = "welcome") {
@@ -150,7 +157,10 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
                                     Text(message.progress, style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .65f))
                                 }
                                 message.playlist?.let { playlist ->
-                                    AiConversationResult(playlist, paper, ink, reduced, onPlay = { bounds, layer ->
+                                    AiConversationResult(playlist, paper, ink, reduced, onQuote = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        state.quote(playlist)
+                                    }, onPlay = { bounds, layer ->
                                         keyboard?.hide(); focusManager.clearFocus()
                                         onPlay(playlist, bounds, layer)
                                     })
@@ -183,7 +193,7 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
                     Surface(color = paper, shape = AiConversationShape, contentColor = ink) {
                         Row(Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { AiConversationAttachmentPreview(attached.snapshot, ink) }
-                            IconButton(onClick = { state.attachment = null }) { Icon(Md3eIcons.Close, "移除附带歌单") }
+                            IconButton(onClick = state::clearQuote) { Icon(Md3eIcons.Close, "移除附带歌单") }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
@@ -197,7 +207,7 @@ internal fun Md3eAiConversationPage(runtime: Md3eRuntime, state: Md3eAiConversat
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = { send() }), decorationBox = { field ->
                                 Box(Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
-                                    if (state.draft.isEmpty()) Text(if (state.historyLoading) "正在读取对话…" else if (state.busy) "可以继续写，完成后发送" else "说说你想听的音乐…",
+                                    if (state.draft.isEmpty()) Text(if (state.historyLoading) "正在读取对话…" else if (state.busy) "可以继续写，完成后发送" else if (state.attachment != null) "输入对这组歌曲的修改要求…" else "说说你想听的音乐…",
                                         style = MaterialTheme.typography.bodyLarge, color = ink.copy(alpha = .5f))
                                     field()
                                 }
@@ -226,7 +236,7 @@ private fun AiConversationSentPlaylist(playlist: AiConversationPlaylist) {
         Column(Modifier.align(Alignment.BottomStart).padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(playlist.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
                 color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${playlist.songs.size} 首 · 修改这组歌单", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .8f))
+            Text("${playlist.songs.size} 首 · 引用修改", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .8f))
         }
     }
 }
@@ -248,14 +258,15 @@ private fun AiConversationAttachmentPreview(playlist: AiConversationPlaylist, in
         Artwork(cover, Modifier.size(46.dp), corner = 12.dp)
         Column(Modifier.weight(1f)) {
             Text(playlist.name, style = MaterialTheme.typography.titleSmall, color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${playlist.songs.size} 首 · AI 歌单", style = MaterialTheme.typography.labelSmall, color = ink.copy(alpha = .65f))
+            Text("${playlist.songs.size} 首 · 引用修改", style = MaterialTheme.typography.labelSmall, color = ink.copy(alpha = .65f))
         }
     }
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun AiConversationResult(playlist: AiConversationPlaylist, paper: Color, ink: Color, reduced: Boolean,
-    onPlay: (Rect, GraphicsLayer) -> Unit) {
+    onQuote: () -> Unit, onPlay: (Rect, GraphicsLayer) -> Unit) {
     var visible by remember { mutableStateOf(reduced) }
     var expanded by remember { mutableStateOf(false) }
     var bounds by remember { mutableStateOf(Rect.Zero) }
@@ -266,8 +277,10 @@ private fun AiConversationResult(playlist: AiConversationPlaylist, paper: Color,
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val cover = playlist.songs.firstOrNull()?.let { it.coverUrl ?: it.coverThumbPath }.orEmpty()
             val accent = rememberSonicCardAccent(cover)
-            Surface(onClick = { if (bounds.width > 0) onPlay(bounds, layer) },
-                Modifier.fillMaxWidth().heightIn(min = 260.dp).aspectRatio(1.05f)
+            Surface(Modifier.fillMaxWidth().heightIn(min = 260.dp).aspectRatio(1.05f)
+                    .clip(AiConversationShape)
+                    .combinedClickable(role = Role.Button, onClickLabel = "开始播放", onLongClickLabel = "引用修改",
+                        onLongClick = onQuote, onClick = { if (bounds.width > 0) onPlay(bounds, layer) })
                     .onGloballyPositioned { bounds = it.boundsInRoot() }
                     .drawWithContent { layer.record { this@drawWithContent.drawContent() }; drawContent() },
                 shape = AiConversationShape, color = accent.fill, shadowElevation = 3.dp) {

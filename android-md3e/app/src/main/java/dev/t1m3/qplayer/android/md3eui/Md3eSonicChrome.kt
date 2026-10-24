@@ -29,8 +29,8 @@ import dev.t1m3.qplayer.android.md3eui.sonic.*
 
 internal val LocalSonicDesign = staticCompositionLocalOf { false }
 
-private val sonicLightColors by lazy { materialExpressiveColorScheme("#6750A4", false) }
-private val sonicDarkColors by lazy { materialExpressiveColorScheme("#6750A4", true) }
+private val sonicLightColors by lazy { materialArtworkColorScheme("#6750A4", false) }
+private val sonicDarkColors by lazy { materialArtworkColorScheme("#6750A4", true) }
 
 internal fun sonicColorScheme(dark: Boolean): ColorScheme = if (dark) sonicDarkColors else sonicLightColors
 
@@ -98,7 +98,7 @@ internal fun SonicNavigationBar(selected: String, onSelect: (String) -> Unit) {
                         Box(Modifier.size(56.dp, 30.dp).clip(CircleShape).background(
                             if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
                             contentAlignment = Alignment.Center) {
-                            Icon(icon, null, Modifier.size(22.dp), tint = if (active) MaterialTheme.colorScheme.primary
+                            Icon(icon, null, Modifier.size(22.dp), tint = if (active) MaterialTheme.colorScheme.onSecondaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text(text, fontSize = 11.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
@@ -116,7 +116,7 @@ internal fun SonicChips(options: List<String>, selected: Int, onSelect: (Int) ->
         options.forEachIndexed { index, text ->
             Surface(onClick = { onSelect(index) }, shape = CircleShape,
                 color = if (index == selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = if (index == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) {
+                contentColor = if (index == selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
                 Text(text, Modifier.padding(horizontal = 16.dp, vertical = 9.dp), style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (index == selected) FontWeight.Bold else FontWeight.Medium)
             }

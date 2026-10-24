@@ -170,6 +170,7 @@ public final class LyricTimeline {
         LyricLine copy = new LyricLine();
         copy.syllables.addAll(source.syllables); // Syllable is immutable.
         copy.vocalChannel = source.vocalChannel;
+        copy.leadStartMs = source.leadStartMs;
         copy.translation = source.translation;
         copy.romaji = source.romaji;
         return copy;

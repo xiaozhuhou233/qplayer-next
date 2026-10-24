@@ -13,7 +13,8 @@ $zip = [IO.Compression.ZipFile]::OpenRead($apkPath)
 try {
     foreach ($name in @('assets/grok-mascot/index.html', 'assets/grok-mascot/engine.js', 'assets/licenses/musicone-LICENSE.txt', 'assets/licenses/Backdrop-Apache-2.0.txt', 'assets/licenses/BiliPai-GPL-3.0.txt', 'assets/licenses/Material-Color-Utilities-Apache-2.0.txt',
         'assets/licenses/PixelPlayer-LICENSE.txt', 'assets/licenses/Kablammo-OFL.txt', 'assets/licenses/Playpen_Sans-OFL.txt',
-        'assets/licenses/Cherry_Bomb_One-OFL.txt', 'assets/licenses/Arizonia-OFL.txt', 'assets/licenses/Lavishly_Yours-OFL.txt', 'assets/licenses/Unkempt-LICENSE.txt')) {
+        'assets/licenses/Cherry_Bomb_One-OFL.txt', 'assets/licenses/Arizonia-OFL.txt', 'assets/licenses/Lavishly_Yours-OFL.txt', 'assets/licenses/Unkempt-LICENSE.txt',
+        'assets/licenses/LyricsBlossom-NOTICE.txt')) {
         $entry = $zip.GetEntry($name)
         if (-not $entry -or $entry.Length -eq 0) { throw "Missing mascot asset: $name" }
         $reader = [IO.StreamReader]::new($entry.Open(), [Text.Encoding]::UTF8)
@@ -32,6 +33,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "dexdump failed for $($entry.FullName)" }
     }
     foreach ($required in @(
+        'dev/t1m3/qplayer/lyric/ReferenceLyricMotion',
+        'dev/t1m3/qplayer/lyric/ReferenceLyricTimeline',
+        'dev/t1m3/qplayer/android/md3eui/Md3eLyricsKt',
         'dev/t1m3/qplayer/android/md3eui/Md3eActivity',
         'dev/t1m3/qplayer/android/md3eui/Md3eSonicChromeKt',
         'dev/t1m3/qplayer/android/md3eui/Md3eSonicPagesKt',
@@ -51,7 +55,14 @@ try {
         'dev/t1m3/qplayer/netease/NeteaseListening',
         'dev/t1m3/qplayer/android/md3eui/Md3eListeningPageKt',
         'dev/t1m3/qplayer/color/MaterialExpressivePalette',
+        'dev/t1m3/qplayer/color/MaterialArtworkPalette',
         'dev/t1m3/qplayer/color/material/scheme/SchemeExpressive',
+        'dev/t1m3/qplayer/color/material/scheme/SchemeTonalSpot',
+        'dev/t1m3/qplayer/color/material/scheme/SchemeVibrant',
+        'dev/t1m3/qplayer/color/material/scheme/SchemeNeutral',
+        'dev/t1m3/qplayer/color/material/scheme/SchemeRainbow',
+        'dev/t1m3/qplayer/color/material/scheme/SchemeFruitSalad',
+        'dev/t1m3/qplayer/android/md3eui/Md3ePaletteSettingsKt',
         'dev/t1m3/qplayer/android/md3eui/Md3eAiMascotKt',
         'dev/t1m3/qplayer/android/md3eui/Md3eMvBackdropKt',
         'dev/t1m3/qplayer/android/md3eui/MvWarmPlayer',

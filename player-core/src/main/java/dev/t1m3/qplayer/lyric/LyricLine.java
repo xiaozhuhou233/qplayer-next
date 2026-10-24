@@ -34,6 +34,8 @@ public class LyricLine {
 
     public final List<Syllable> syllables = new ArrayList<>();
     public VocalChannel vocalChannel = VocalChannel.MAIN;
+    /** Explicit TTML parent anchor; -1 for independent or legacy vocal rows. */
+    public long leadStartMs = -1L;
     /** Sidecar lines for the same time range. Null if absent. */
     public String translation;
     public String romaji;

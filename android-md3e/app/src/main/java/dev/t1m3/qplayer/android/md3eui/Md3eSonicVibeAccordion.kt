@@ -37,7 +37,7 @@ import dev.t1m3.qplayer.ai.DailyVibeCuration
 internal fun SonicVibeAccordion(runtime: Md3eRuntime, onOpen: (DailyVibeCuration.Playlist) -> Unit,
     onEdit: (DailyVibeCuration.Playlist) -> Unit, onSave: (DailyVibeCuration.Playlist) -> Unit) {
     val state = runtime.dailyVibes.state
-    val playlists = state.playlists
+    val playlists = runtime.dailyVibes.playlists
     if (playlists.isEmpty()) return
     var selectedSlot by rememberSaveable(state.day) { mutableIntStateOf(playlists.first().slot) }
     val activeIndex = playlists.indexOfFirst { it.slot == selectedSlot }.coerceAtLeast(0)
@@ -135,3 +135,4 @@ private fun SonicVibePoster(playlist: DailyVibeCuration.Playlist, width: Dp, exp
         }
     }
 }
+

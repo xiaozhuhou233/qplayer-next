@@ -69,7 +69,10 @@ public final class YrcParser {
                 if (hasClose) inBg = false;
             }
             if (!main.syllables.isEmpty()) out.add(main);
-            if (!bg.syllables.isEmpty()) out.add(bg);
+            if (!bg.syllables.isEmpty()) {
+                if (!main.syllables.isEmpty()) bg.leadStartMs = main.startMs();
+                out.add(bg);
+            }
         }
         out.sort((a, b) -> Long.compare(a.startMs(), b.startMs()));
         return out;

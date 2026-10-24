@@ -90,14 +90,36 @@ public class AiMusicConversationTest {
         gateway.start();
         try {
             AiClient client = new AiClient("http://127.0.0.1:" + gateway.getAddress().getPort(), "", "deepseek-chat", 5000);
-            AiMusicConversation.ask(client, "听歌历史：A\n收藏：B", "当前歌单：C", "保留氛围，增加女声");
+            AiMusicConversation.askWithWeb(client, "听歌历史：A\n收藏：B", "当前歌单：C", "保留氛围，增加女声", false,
+                    "2026-10-21，来源：音乐人官网，发布新专辑");
             assertEquals(1, requests.size());
             JsonObject request = requests.get(0);
             String wire = request.toString();
             assertTrue(wire.contains("听歌历史：A")); assertTrue(wire.contains("收藏：B"));
             assertTrue(wire.contains("当前歌单：C")); assertTrue(wire.contains("增加女声"));
-            assertTrue(wire.contains("禁止联网"));
+            assertTrue(wire.contains("联网由应用检索"));
+            assertTrue(wire.contains("来源：音乐人官网"));
             for (String field : Arrays.asList("max_tokens", "max_completion_tokens", "max_output_tokens", "tools")) assertFalse(request.has(field));
+
+            // Quoting an older card must be an explicit edit task, even when
+            // a different/newer list appears in the recent conversation.
+            try {
+                AiMusicConversation.revise(client, "收藏：B", "用户本次引用修改的列表：旧列表A\nYellow — Coldplay",
+                        "删掉 Yellow，保留其他歌曲");
+                fail("A text-only answer is not a completed playlist edit");
+            } catch (AiClient.ResponseFormatException expected) {
+                assertTrue(expected.getMessage().contains("原列表已保留"));
+            }
+            assertEquals(2, requests.size());
+            String revision = requests.get(1).toString();
+            assertTrue(revision.contains("本次任务：修改"));
+            assertTrue(revision.contains("旧列表A"));
+            assertTrue(revision.contains("Yellow — Coldplay"));
+            assertTrue(revision.contains("完整修改版 songs"));
+            assertTrue(revision.contains("未要求改动的歌曲和顺序尽量保留"));
+            assertTrue(revision.contains("否则延续被引用列表的数量"));
+            for (String field : Arrays.asList("max_tokens", "max_completion_tokens", "max_output_tokens", "tools"))
+                assertFalse(requests.get(1).has(field));
         } finally { gateway.stop(0); }
     }
 }

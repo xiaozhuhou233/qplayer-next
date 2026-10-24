@@ -24,6 +24,9 @@ import androidx.compose.ui.unit.dp
 private data class Acknowledgement(val name: String, val description: String, val url: String)
 
 private val projectAcknowledgements = listOf(
+    Acknowledgement("中国天气网", "城市天气实况与逐时预报", "https://www.weather.com.cn/"),
+    Acknowledgement("中央气象台", "城市站点天气实况", "https://www.nmc.cn/"),
+    Acknowledgement("Open-Meteo", "天气模型与当日预报数据 · CC BY 4.0", "https://open-meteo.com/"),
     Acknowledgement("AndroidLiquidGlass", "液态玻璃效果与 API · iOS mode",
         "https://github.com/Kyant0/AndroidLiquidGlass"),
     Acknowledgement("NetEase API", "网易云音乐接口与请求加密参考",
