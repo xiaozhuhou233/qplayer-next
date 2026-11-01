@@ -636,8 +636,14 @@ public final class AutoCue {
                         }
                     });
 
-    static final int SCAN_CACHE_MAX = 4;
-    static final long SCAN_CACHE_TTL_MS = 10L * 60L * 1000L;
+    // **16 条**（移植自 strokeshading/qplayer `627047b6` ✓）：
+    // 原先 4 条 ✗ —— 两首歌 ×（深扫/浅扫）= 4 条就满 ✓，
+    // 编排器还要评估多个窗口方案 + `widen` 变体 ⇒ **深扫被 LRU 顶掉** ✗
+    // ⇒ 下一次又整曲解码 ✓（实测：同一首扫 6 次、每次 2.3 s ✗）。
+    static final int SCAN_CACHE_MAX = 16;
+    // 10 分钟 → **12 小时**（移植自 `cachedScan` 那次的修复 ✓）：
+    // 10 分钟意味着"一首歌听两遍就要重解一遍"✗；手机上一首整曲解码 2~3 s ✓ 太久 ✓。
+    static final long SCAN_CACHE_TTL_MS = 12L * 60L * 60L * 1000L;
 
     private static final class CachedEnvelope {
         final Envelope envelope;
@@ -661,6 +667,8 @@ public final class AutoCue {
         }
         CachedEnvelope hit = SCAN_CACHE.get(key);
         if (hit != null && System.currentTimeMillis() - hit.bornAtMs <= SCAN_CACHE_TTL_MS) {
+            dev.t1m3.qplayer.util.Logger.info("[扫描缓存] 内存命中 ✓（预算 {} s · 浅扫={}）",
+                    Double.valueOf(maxSecs), Boolean.valueOf(introBudget));
             return hit.envelope;
         }
         Envelope fresh = scanInternal(source, headers, maxSecs, introBudget, bridge);
@@ -675,7 +683,7 @@ public final class AutoCue {
             boolean introBudget,
             boolean bridge) {
         StringBuilder sb = new StringBuilder();
-        sb.append(source)
+        sb.append(stableScanSource(source))
                 .append('\u0000')
                 .append(introBudget ? 'I' : 'F')
                 .append(bridge ? 'B' : 'b')
@@ -691,13 +699,35 @@ public final class AutoCue {
         try {
             java.io.File file = new java.io.File(source);
             if (!file.isFile()) {
-                return null;
+                // **非本地文件也必须给键**（移植自 `6972a1e0` ✓ 这是"解码慢"的真根 ✗）：
+                // 原先这里 `return null` ⇒ 远端/插件的扫描**完全不走缓存** ✗
+                // ⇒ 每首歌、每次准备都整曲解码一遍 ✓（手机上 2~3 s × 反复 ✓）。
+                // 远端保留歌曲参数，仅剔除已知的短期签名参数 ✓（音频不变 ✓ 只是签名变 ✓）。
+                return sb.toString();
             }
             sb.append('\u0000').append(file.length()).append('@').append(file.lastModified());
         } catch (RuntimeException e) {
             return null;
         }
         return sb.toString();
+    }
+
+    static String stableScanSource(String source) {
+        if (source == null || !(source.startsWith("https://") || source.startsWith("http://"))) return source;
+        int question = source.indexOf('?');
+        if (question < 0) return source;
+        StringBuilder stable = new StringBuilder(source.substring(0, question));
+        String separator = "?";
+        for (String part : source.substring(question + 1).split("&")) {
+            String key = part.split("=", 2)[0].toLowerCase(java.util.Locale.ROOT);
+            // Only known expiring signatures may be discarded; id/quality/format remain distinct.
+            if (key.equals("token") || key.equals("expires") || key.equals("signature")
+                    || key.equals("sign") || key.equals("auth_key") || key.equals("wstime")
+                    || key.equals("wssecret") || key.equals("vuutv")) continue;
+            stable.append(separator).append(part);
+            separator = "&";
+        }
+        return stable.toString();
     }
 
     static void clearScanCache() {
@@ -4475,20 +4505,46 @@ public final class AutoCue {
     }
 
     private static double bestBarPhaseOf(Envelope env, double barSecs, double[] candidates) {
-        double best = -1.0;
-        double bestPhase = Double.NaN;
+        // **惊喜度加分**（2026-10-11 ✓ 标准 L1.6 加分项 ✓ 用户提出熵/预测误差 ✓）：
+        //   主项仍是"整首铺下来起音最密"的相位 ✓（不动 ✗）
+        //   加成 = (1 − Surprise.score) × **15 %** × 主项最大值 ✓
+        //   ⇒ 严格限幅 ✓ 永远压不过主项 ✗ 也不会因为算不出来就改变结果 ✓（算不出 ⇒ 0 ✓）
+        final double[] sums = new double[candidates.length];
+        double maxSum = 0;
         for (int c = 0; c < candidates.length; c++) {
-            double phase = candidates[c];
+            final double phase = candidates[c];
             double sum = 0.0;
             for (double t = phase; t < env.durationSecs; t += barSecs) {
-                int i = env.indexAt(t);
+                final int i = env.indexAt(t);
                 for (int j = Math.max(0, i - 3); j < Math.min(env.onset.length, i + 4); j++) {
                     sum += env.onset[j];
                 }
             }
-            if (sum > best) {
-                best = sum;
-                bestPhase = phase;
+            sums[c] = sum;
+            if (sum > maxSum) maxSum = sum;
+        }
+        int periodOnsetFrames = 0;
+        try {
+            final double secPerFrame = env.durationSecs / Math.max(1, env.onset.length);
+            if (env.tempo != null && env.tempo.periodFrames > 0 && env.beatRate > 0 && secPerFrame > 0) {
+                periodOnsetFrames = (int) Math.round(
+                        (env.tempo.periodFrames / (double) env.beatRate) / secPerFrame);
+            }
+        } catch (RuntimeException ignored) {
+            periodOnsetFrames = 0;
+        }
+        // This whole-track prior is phase independent. Keep it outside the loop;
+        // it is groundwork, not a new phase-sensitive beat detector.
+        final double bonus = periodOnsetFrames >= 8
+                ? (1.0 - dev.t1m3.qplayer.audio.model.Surprise.score(
+                        env.onset, 0, env.onset.length, periodOnsetFrames)) * 0.15 * maxSum : 0.0;
+        double best = -1.0;
+        double bestPhase = Double.NaN;
+        for (int c = 0; c < candidates.length; c++) {
+            double score = sums[c] + bonus;
+            if (score > best) {
+                best = score;
+                bestPhase = candidates[c];
             }
         }
         return bestPhase;

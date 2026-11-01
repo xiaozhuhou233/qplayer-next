@@ -2892,6 +2892,11 @@ public final class AndroidAudioBackend implements AudioBackend {
         } catch (Throwable e) {
             promotedAt = -1L;
         }
+        if (activeAutoMix != null) {
+            Logger.info("AutoMix handover: incomingMs={}, entryMs={}, exitMs={}, leadInMs={}, overlapMs={}",
+                    promotedAt, activeAutoMix.entryMs, activeAutoMix.exitMs,
+                    activeAutoMix.leadInMs, activeAutoMix.overlapMs);
+        }
         // Two numbers, because what they measure is what the listener has been given of
         // the next track: the promoted player's own clock, and the overlap's count (the
         // offset it was started at plus the ramp). The player is started BY the ramp and

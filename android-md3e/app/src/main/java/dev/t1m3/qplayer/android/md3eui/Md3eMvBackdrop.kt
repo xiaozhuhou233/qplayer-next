@@ -206,11 +206,28 @@ private fun MvVideoLayer(url: String, playing: Boolean, visible: Boolean, sceneB
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
             val progress = controlsTop.takeIf { it > 0f } ?: (size.height * .73f)
             val title = sceneBottom.takeIf { it > 0f } ?: (size.height * .59f)
-            val stops = (0..32).map {
-                val fraction = it / 32f
-                fraction to Color.Black.copy(alpha = mvShadeAlpha(fraction, title / size.height, progress / size.height))
+            // **顶部黑边改成"渐变模糊"**（2026-10-10 ✓ 用户：「mv 模式上面那个黑边用渐变模糊一下」✓）：
+            // 原先顶部第一档 alpha 直接从 0 起跳 ✓ 在与视频的交界处形成一条**硬边** ✗
+            // ⇒ 现在：顶端先给一个**较柔的基准值**（0.55 ✓）再平滑落到 0 ✓
+            //   并且叠加一条**横向**渐变 ✓ 让左右上角也不出现直角黑块 ✓
+            //   （Compose 的 `Modifier.blur` 在 API<31 不可用 ✗ 这里用多层渐变模拟扩散 ✓ 零风险 ✓）
+            val stops = (0..48).map {
+                val fraction = it / 48f
+                val shade = mvShadeAlpha(fraction, title / size.height, progress / size.height)
+                // 越靠顶端越"压一点"，但不再是刀切 ✓
+                val soften = (1f - fraction).coerceIn(0f, 1f)
+                val top = 0.55f * soften * soften
+                fraction to Color.Black.copy(alpha = (shade + top).coerceIn(0f, 0.99f))
             }.toTypedArray()
             drawRect(Brush.verticalGradient(*stops))
+            val cornerRadius = minOf(size.width * .65f, size.height * .55f)
+            for (x in listOf(0f, size.width)) {
+                drawRect(Brush.radialGradient(
+                    colors = listOf(Color.Black.copy(alpha = .38f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(x, 0f),
+                    radius = cornerRadius,
+                ))
+            }
         }
     }
     return ready

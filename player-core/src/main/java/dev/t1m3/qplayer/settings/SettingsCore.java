@@ -512,6 +512,7 @@ public final class SettingsCore extends QObject implements LyricCompositor.Setti
                 case "precacheNextTrack":
                 case "autoMixStyle":
                 case "autoMixWindow":
+                case "autoMixCueMode":
                 case "autoMixForceWindow":
                 case "autoMixWidth":
                 case "autoMixScale":
@@ -553,19 +554,29 @@ public final class SettingsCore extends QObject implements LyricCompositor.Setti
     }
 
     /** AutoMix settings and the existing recommendation API timeout. */
+    static int preferredAutoMixWindow(int seconds, int mode, boolean fixed) {
+        if (fixed) return seconds;
+        if (mode <= 0) return Math.max(2, seconds * 2 / 3);
+        if (mode >= 2) return Math.min(30, seconds * 3 / 2);
+        return seconds;
+    }
+
     private void pushTransition() {
         if (controller == null) return;
         controller.setPrecacheNextEnabled(bool("precacheNextTrack"));
+        // Preference scales automatic windows only; explicit user durations remain exact.
+        final int mixWindow = preferredAutoMixWindow(intOf("autoMixWindow"),
+                intOf("autoMixCueMode"), bool("autoMixForceWindow"));
         try {
             controller.setAutoMixConfig(new dev.t1m3.qplayer.audio.automix.AutoMixConfig(
                     bool(SettingsCatalog.SMART_TRANSITION_KEY), intOf("autoMixMode"),
-                    intOf("autoMixStyle"), intOf("autoMixWindow"), bool("autoMixForceWindow"),
+                    intOf("autoMixStyle"), mixWindow, bool("autoMixForceWindow"),
                     intOf("autoMixWidth"), intOf("autoMixScale"), bool("autoMixStretch"), str("autoMixTuning"), bool("autoMixAutoCue"), bool("autoMixPitchEnabled")));
         } catch (dev.t1m3.qplayer.audio.mix.TuningException ex) {
             controller.toast.set("AutoMix 参数无效：" + ex.getMessage());
             controller.setAutoMixConfig(new dev.t1m3.qplayer.audio.automix.AutoMixConfig(
                     bool(SettingsCatalog.SMART_TRANSITION_KEY), intOf("autoMixMode"),
-                    intOf("autoMixStyle"), intOf("autoMixWindow"), bool("autoMixForceWindow"),
+                    intOf("autoMixStyle"), mixWindow, bool("autoMixForceWindow"),
                     intOf("autoMixWidth"), intOf("autoMixScale"), bool("autoMixStretch"), "", bool("autoMixAutoCue"), bool("autoMixPitchEnabled")));
         }
         controller.setAiTransitionConfig(str("aiBaseUrl"), str("aiApiKey"), str("aiModel"), intOf("aiTimeoutMs"));

@@ -236,6 +236,11 @@ public final class SettingsCatalog {
         out.add(SettingSpec.dropdown("autoMixMode", PLAYBACK, "AutoMix 模式", 2,
                 "交叉混音", "和声混音", "智能混音（本地 DSP）", "连续切换")
                 .dependsOn(SMART_TRANSITION_KEY).build());
+        // The imported preference changes automatic duration, not the beat detector.
+        out.add(SettingSpec.segmented("autoMixCueMode", PLAYBACK, "自动窗口偏好", 1,
+                "保守", "均衡", "激进")
+                .desc("保守缩短自动窗口，激进延长；固定过渡时长不变")
+                .dependsOn(SMART_TRANSITION_KEY).build());
         out.add(SettingSpec.toggle("autoMixAutoCue", PLAYBACK, "自动点位", true)
                 .desc("有可能吃掉下一首歌一分钟")
                 .dependsOn(SMART_TRANSITION_KEY).build());
