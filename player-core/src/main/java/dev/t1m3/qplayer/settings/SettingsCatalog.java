@@ -67,6 +67,13 @@ public final class SettingsCatalog {
      *  disabled, they use a flat Monet/MD3 colour background instead. */
     public static final String COVER_BACKGROUND_KEY = "lyricCoverBackground";
     public static final String MV_BACKGROUND_KEY = "playerMvBackground";
+    public static final String PLAYER_ARTWORK_KEY = "playerArtworkMode";
+    public static final int ARTWORK_MV = 0;
+    public static final int ARTWORK_DYNAMIC = 1;
+    public static final int ARTWORK_STATIC = 2;
+    public static final String DYNAMIC_COVER_API_BASE_KEY = "dynamicCoverApiBaseUrl";
+    public static final String DYNAMIC_COVER_STOREFRONT_KEY = "dynamicCoverStorefront";
+    public static final String DYNAMIC_COVER_NETWORK_KEY = "dynamicCoverNetwork";
     public static final int BG_STYLE_PIXI_RENDERER = 0;
     public static final int BG_STYLE_MESH_GRADIENT = 1;
     public static final int BG_STYLE_CLASSIC = 2;
@@ -158,10 +165,24 @@ public final class SettingsCatalog {
                 .desc("使用 MD3，关闭重特效和后台音频预处理")
                 .onlyOn(ANDROID)
                 .build());
-        out.add(SettingSpec.toggle(MV_BACKGROUND_KEY, APPEARANCE, "MV 动态背景（实验性）", false)
-                .desc("播放页循环静音 MV，随音乐暂停。消耗流量，最低配模式停用")
+        // Retain the legacy value for old hosts and one-time migration.
+        out.add(SettingSpec.hidden(MV_BACKGROUND_KEY, SettingSpec.SWITCH, false).onlyOn(ANDROID).build());
+        out.add(SettingSpec.segmented(PLAYER_ARTWORK_KEY, APPEARANCE, "播放页封面", ARTWORK_STATIC,
+                        "MV 背景", "动态专辑封面", "普通封面")
+                .desc("视频随音乐暂停；不可用时显示普通封面")
                 .onlyOn(ANDROID)
                 .build());
+        out.add(SettingSpec.segmented(DYNAMIC_COVER_NETWORK_KEY, APPEARANCE, "动态封面联网", 0,
+                        "仅 Wi-Fi", "仅移动网络", "所有网络")
+                .desc("直接解析 Apple Music 动态封面并缓存")
+                .onlyOn(ANDROID)
+                .build());
+        out.add(SettingSpec.text(DYNAMIC_COVER_API_BASE_KEY, APPEARANCE, "动态封面解析地址", "")
+                .desc("留空在 App 内解析；自建服务请填写 HTTPS 地址")
+                .onlyOn(ANDROID).build());
+        out.add(SettingSpec.text(DYNAMIC_COVER_STOREFRONT_KEY, APPEARANCE, "动态封面地区", "us")
+                .desc("自建解析服务的 storefront，如 cn 或 us")
+                .onlyOn(ANDROID).build());
         out.add(SettingSpec.toggle("iosGlassRefraction", APPEARANCE, "玻璃折射", true)
                 .desc("关闭后仅保留模糊玻璃")
                 .onlyOn(ANDROID)

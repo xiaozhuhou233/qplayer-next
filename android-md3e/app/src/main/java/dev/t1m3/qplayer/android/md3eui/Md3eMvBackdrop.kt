@@ -114,21 +114,21 @@ internal fun Md3ePrewarmMv(runtime: Md3eRuntime) {
     val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val songId = runtime.playback.songId
     val enabled = runtime.uiVisible && songId > 0 && !runtime.bili.playing &&
-        runtime.settings.bool(SettingsCatalog.MV_BACKGROUND_KEY) && !runtime.settings.bool(SettingsCatalog.LOW_SPEC_MODE_KEY)
+        (runtime.settings.intOf(SettingsCatalog.PLAYER_ARTWORK_KEY) == SettingsCatalog.ARTWORK_MV) && !runtime.settings.bool(SettingsCatalog.LOW_SPEC_MODE_KEY)
     LaunchedEffect(songId, enabled, MvWarmPlayer.revision) {
         if (enabled) try {
             val url = MvBackdropSources.load(songId)
             if (url.isNotEmpty()) MvWarmPlayer.prepare(context, url)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* Detail view owns retries and the artwork fallback. */ }
-        else if (songId <= 0 || runtime.bili.playing || !runtime.settings.bool(SettingsCatalog.MV_BACKGROUND_KEY) ||
+        else if (songId <= 0 || runtime.bili.playing || !(runtime.settings.intOf(SettingsCatalog.PLAYER_ARTWORK_KEY) == SettingsCatalog.ARTWORK_MV) ||
             runtime.settings.bool(SettingsCatalog.LOW_SPEC_MODE_KEY)) MvWarmPlayer.clear()
     }
     DisposableEffect(Unit) { onDispose { MvWarmPlayer.clear() } }
 }
 
 internal fun mvBackdropExpected(runtime: Md3eRuntime): Boolean =
-    runtime.settings.bool(SettingsCatalog.MV_BACKGROUND_KEY) &&
+    (runtime.settings.intOf(SettingsCatalog.PLAYER_ARTWORK_KEY) == SettingsCatalog.ARTWORK_MV) &&
         !runtime.settings.bool(SettingsCatalog.LOW_SPEC_MODE_KEY) && !runtime.bili.playing &&
         runtime.playback.songId > 0 && MvBackdropSources.peek(runtime.playback.songId) != ""
 
@@ -152,7 +152,7 @@ internal fun Md3eMvBackdrop(runtime: Md3eRuntime, sceneBottom: Float, controlsTo
         lifecycle?.addObserver(observer)
         onDispose { lifecycle?.removeObserver(observer) }
     }
-    val enabled = runtime.settings.bool(SettingsCatalog.MV_BACKGROUND_KEY) &&
+    val enabled = (runtime.settings.intOf(SettingsCatalog.PLAYER_ARTWORK_KEY) == SettingsCatalog.ARTWORK_MV) &&
         !runtime.settings.bool(SettingsCatalog.LOW_SPEC_MODE_KEY) && !runtime.bili.playing &&
         state.songId > 0
     if (!enabled) return MvBackdropState(false, false)

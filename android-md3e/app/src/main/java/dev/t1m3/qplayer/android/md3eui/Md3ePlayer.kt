@@ -64,6 +64,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
@@ -101,6 +102,9 @@ private val LocalPlayerCoverTransition = staticCompositionLocalOf<PlayerCoverTra
 // This scope only joins the two player tabs, independent of page navigation.
 @Composable
 internal fun Modifier.playerTabCover(restingAngle: Float = 0f): Modifier {
+    val dynamicCover = LocalDynamicPlayerCover.current
+    // An overlay escapes the ordinary cover's crossfade layer.
+    if (dynamicCover.hasMotion || dynamicCover.fadeProgress > 0f) return rotate(restingAngle)
     val transition = LocalPlayerCoverTransition.current ?: return rotate(restingAngle)
     val claude = LocalClaudeDesign.current
     val otherAngle = 0f
@@ -167,8 +171,12 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
     BackHandler(onBack = onBack)
     val mvLayout = remember { MvBackdropLayout() }
     var mvPan by remember(state.songId) { mutableFloatStateOf(0f) }
+    val dynamicCover = rememberDynamicPlayerCover(runtime, visible = tab == 0)
+    val dynamicTransition = rememberDynamicCoverTransition(state.songId, dynamicCover)
+    val dynamicBackground = dynamicTransition.visible
     val mvExpected = tab == 0 && mvBackdropExpected(runtime)
-    val playerBackground = if (mvExpected) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+    val playerBackground = if (mvExpected) Color.Black else
+        lerp(MaterialTheme.colorScheme.surfaceContainer, Color.Black, dynamicTransition.progress)
     Box(Modifier.fillMaxSize()
         .onGloballyPositioned { mvLayout.rootTop = it.boundsInRoot().top }
         .pointerInput(Unit) {
@@ -263,11 +271,21 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
         val mvState = Md3eMvBackdrop(runtime, mvLayout.sceneBottom,
             mvLayout.controlsTop, visible = tab == 0, modifier = Modifier.fillMaxSize(), panFraction = mvPan)
         val hasMvBackground = tab == 0 && mvState.hasVideo
+        if (dynamicBackground) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = dynamicTransition.progress }) {
+                Md3eDynamicCoverBackdrop(dynamicTransition.presentation, state.cover, Modifier.fillMaxSize())
+                DynamicCoverCard(runtime,
+                    Modifier.fillMaxWidth().fillMaxHeight(.72f)
+                        .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
+                        .padding(vertical = 8.dp).clickable { tab = 1 },
+                    presentation = dynamicTransition.presentation, renderVideo = dynamicCover.hasMotion)
+            }
+        }
         SideEffect {
             mvBackground = hasMvBackground
-            if (tab == 0) detailHadMv = hasMvBackground
-            expansion?.immersiveVideo = hasMvBackground
-            expansion?.detailShowsDisc = tab == 0 && !runtime.bili.playing && !hasMvBackground
+            if (tab == 0) detailHadMv = hasMvBackground || dynamicBackground
+            expansion?.immersiveVideo = hasMvBackground || dynamicBackground
+            expansion?.detailShowsDisc = tab == 0 && !runtime.bili.playing && !hasMvBackground && !dynamicBackground
         }
         }
         if (tab == 0 && mvBackground) Box(Modifier.fillMaxWidth().fillMaxHeight(.5f)
@@ -278,21 +296,25 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
                 }
             })
         val dynamicLyrics = tab == 1 && coverBackground && !runtime.settings.bool("lowSpecMode")
+        val immersiveBackground = mvBackground || dynamicBackground
         val scheme = MaterialTheme.colorScheme
-        val displayScheme = if (dynamicLyrics || mvBackground) scheme.copy(
-            onSurface = Color.White,
-            onSurfaceVariant = Color(0xFFDDDDDD),
-            onBackground = Color.White,
-            background = if (mvBackground) Color.Black else scheme.background,
-            surface = if (mvBackground) Color.Black else scheme.surface,
-            surfaceContainerHigh = Color(0xD9252830),
+        val backgroundMix = if (mvBackground) 1f else dynamicTransition.progress
+        val foregroundMix = if (dynamicLyrics) 1f else backgroundMix
+        val displayScheme = if (foregroundMix > 0f) scheme.copy(
+            onSurface = lerp(scheme.onSurface, Color.White, foregroundMix),
+            onSurfaceVariant = lerp(scheme.onSurfaceVariant, Color(0xFFDDDDDD), foregroundMix),
+            onBackground = lerp(scheme.onBackground, Color.White, foregroundMix),
+            background = lerp(scheme.background, Color.Black, backgroundMix),
+            surface = lerp(scheme.surface, Color.Black, backgroundMix),
+            surfaceContainerHigh = lerp(scheme.surfaceContainerHigh, Color(0xD9252830), foregroundMix),
         ) else scheme
         MaterialTheme(colorScheme = displayScheme) {
         CompositionLocalProvider(LocalContentColor provides displayScheme.onSurface,
             dev.t1m3.qplayer.android.ui.LocalGlassAdaptiveColors provides false,
             dev.t1m3.qplayer.android.ui.LocalPlayerGlassBackdrop provides playerGlassBackdrop,
-            dev.t1m3.qplayer.android.ui.LocalGlassDark provides (mvBackground || dynamicLyrics || dev.t1m3.qplayer.android.ui.LocalGlassDark.current),
-            LocalPlayerMvBackdrop provides mvBackground,
+            dev.t1m3.qplayer.android.ui.LocalGlassDark provides (immersiveBackground || dynamicLyrics || dev.t1m3.qplayer.android.ui.LocalGlassDark.current),
+            LocalPlayerMvBackdrop provides immersiveBackground,
+            LocalDynamicPlayerCover provides dynamicCover.copy(fadeProgress = dynamicTransition.progress),
             LocalPlayerMvLayout provides (if (tab == 0) mvLayout else null)) {
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
@@ -338,7 +360,7 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
                 ) { page ->
                     CompositionLocalProvider(LocalPlayerCoverTransition provides
                         PlayerCoverTransition(coverScope, this)) {
-                        if (page == 0) PlayerDetailTab(runtime, showArtwork = !(if (tab == 0) mvBackground else detailHadMv), onLyrics = { tab = 1 }, onQueue = onQueue,
+                        if (page == 0) PlayerDetailTab(runtime, showArtwork = !(if (tab == 0) immersiveBackground else detailHadMv), onLyrics = { tab = 1 }, onQueue = onQueue,
                             onOpenAlbum = onOpenAlbum, onOpenArtist = onOpenArtist)
                         else PlayerLyricsTab(runtime, onDetail = { tab = 0 })
                     }
@@ -409,7 +431,8 @@ private fun PlayerDetailTab(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics
                 val aspect = if (runtime.videoHeight > 0) runtime.videoWidth.toFloat() / runtime.videoHeight else 16f / 9f
                 val videoWidth = minOf(maxWidth, maxHeight * aspect)
                 Md3eVideoSlot(runtime, Modifier.width(videoWidth).height(videoWidth / aspect))
-            } else if (showArtwork) Artwork(state.cover, Modifier.size(coverSize).graphicsLayer {
+            } else if (showArtwork || LocalDynamicPlayerCover.current.hasMotion ||
+                LocalDynamicPlayerCover.current.fadeProgress > 0f) Artwork(state.cover, Modifier.size(coverSize).dynamicCoverArtworkFade().graphicsLayer {
                 scaleX = scale.value; scaleY = scale.value
             }.clickable {
                 if (runtime.bili.playing) runtime.videoVisible = true else onLyrics()
@@ -472,9 +495,10 @@ private fun ClaudePlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyr
                 val aspect = if (runtime.videoHeight > 0) runtime.videoWidth.toFloat() / runtime.videoHeight else 16f / 9f
                 val width = minOf(maxWidth, maxHeight * aspect)
                 Md3eVideoSlot(runtime, Modifier.width(width).height(width / aspect))
-            } else if (showArtwork) {
+            } else if (showArtwork || LocalDynamicPlayerCover.current.hasMotion ||
+                LocalDynamicPlayerCover.current.fadeProgress > 0f) {
                 ClaudeArtworkStage(state.cover,
-                    Modifier.fillMaxSize().clickable { if (runtime.bili.playing) runtime.videoVisible = true else onLyrics() })
+                    Modifier.fillMaxSize().dynamicCoverArtworkFade().clickable { if (runtime.bili.playing) runtime.videoVisible = true else onLyrics() })
             }
             if (state.loading) CircularProgressIndicator(Modifier.size(36.dp))
         }
@@ -530,9 +554,10 @@ private fun IosPlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics
                     val aspect = if (runtime.videoHeight > 0) runtime.videoWidth.toFloat() / runtime.videoHeight else 16f / 9f
                     val width = minOf(maxWidth, maxHeight * aspect)
                     Md3eVideoSlot(runtime, Modifier.width(width).height(width / aspect))
-                } else if (showArtwork) {
+                } else if (showArtwork || LocalDynamicPlayerCover.current.hasMotion ||
+                LocalDynamicPlayerCover.current.fadeProgress > 0f) {
                     val side = minOf(maxWidth, (maxHeight - 24.dp).coerceAtLeast(1.dp), 440.dp)
-                    Box(Modifier.size(side).onGloballyPositioned { expansion?.targetDiscBounds = it.boundsInRoot() }) {
+                    Box(Modifier.size(side).dynamicCoverArtworkFade().onGloballyPositioned { expansion?.targetDiscBounds = it.boundsInRoot() }) {
                         ClaudePlayerArtwork(state.cover, Modifier.fillMaxSize().playerTabCover()
                             .graphicsLayer { alpha = if (expansion?.moving == true) 0f else 1f }
                             .clickable { if (runtime.bili.playing) runtime.videoVisible = true else onLyrics() }, corner = 12.dp)

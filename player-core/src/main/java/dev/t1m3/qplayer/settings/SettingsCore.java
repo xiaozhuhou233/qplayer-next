@@ -225,6 +225,9 @@ public final class SettingsCore extends QObject implements LyricCompositor.Setti
         p.set(v);
         persist(spec, v);
         apply(spec, v);
+        if (SettingsCatalog.PLAYER_ARTWORK_KEY.equals(key)) {
+            setValue(SettingsCatalog.MV_BACKGROUND_KEY, ((Number) v).intValue() == SettingsCatalog.ARTWORK_MV);
+        }
         if (pinWindow) fireHooks("autoMixForceWindow", Boolean.TRUE);
         // Design switches are exclusive even when changed through a non-Compose host.
         // Claude uses a lightweight paper theme and may coexist with low-spec rendering.
@@ -652,6 +655,11 @@ public final class SettingsCore extends QObject implements LyricCompositor.Setti
      *  type it was first written with, so a setting that changed shape needs a new
      *  key seeded from the old one. */
     private void migrateLegacyKeys() {
+        if (!store.has(SettingsCatalog.PLAYER_ARTWORK_KEY)) {
+            store.putInt(SettingsCatalog.PLAYER_ARTWORK_KEY,
+                    store.getBool(SettingsCatalog.MV_BACKGROUND_KEY, false)
+                            ? SettingsCatalog.ARTWORK_MV : SettingsCatalog.ARTWORK_STATIC);
+        }
         // "lyricBgStatic" (bool) -> "lyricBgMode" (0 dynamic / 1 static).
         if (!store.has(SettingsCatalog.BG_MODE_KEY) && store.getBool("lyricBgStatic", false)) {
             store.putInt(SettingsCatalog.BG_MODE_KEY, 1);

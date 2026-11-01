@@ -125,9 +125,10 @@ internal fun SonicPlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyr
                     val aspect = if (runtime.videoHeight > 0) runtime.videoWidth.toFloat() / runtime.videoHeight else 16f / 9f
                     val width = minOf(maxWidth, maxHeight * aspect)
                     Md3eVideoSlot(runtime, Modifier.width(width).height(width / aspect))
-                } else if (showArtwork) {
+                } else if (showArtwork || LocalDynamicPlayerCover.current.hasMotion ||
+                LocalDynamicPlayerCover.current.fadeProgress > 0f) {
                     val side = minOf(maxWidth * .94f, (maxHeight - 20.dp).coerceAtLeast(1.dp), 360.dp)
-                    Artwork(state.cover, Modifier.size(side).playerTabCover()
+                    Artwork(state.cover, Modifier.size(side).dynamicCoverArtworkFade().playerTabCover()
                         .shadow(12.dp, RoundedCornerShape(28.dp))
                         .clickable { if (runtime.bili.playing) runtime.videoVisible = true else onLyrics() },
                         corner = 28.dp, contentScale = ContentScale.Fit, containerColor = Color.Transparent)

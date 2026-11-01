@@ -7,13 +7,19 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SettingsCatalogTest {
-    @Test public void mvBackgroundIsOptInAndAndroidOnly() {
+    @Test public void legacyMvSwitchIsHiddenAndNewArtworkSelectorIsAndroidOnly() {
         SettingSpec spec = setting(SettingsCatalog.MV_BACKGROUND_KEY);
         assertEquals(Boolean.FALSE, spec.def);
         assertEquals(SettingSpec.SWITCH, spec.type);
-        assertEquals(SettingsCatalog.APPEARANCE, spec.category);
+        assertTrue(spec.hidden);
         assertTrue(spec.appliesTo(SettingsCatalog.ANDROID));
         assertFalse(spec.appliesTo(SettingsCatalog.DESKTOP));
+        SettingSpec selector = setting(SettingsCatalog.PLAYER_ARTWORK_KEY);
+        assertEquals(SettingsCatalog.ARTWORK_STATIC, selector.def);
+        assertEquals(SettingsCatalog.APPEARANCE, selector.category);
+        assertEquals(3, selector.options.size());
+        assertTrue(selector.appliesTo(SettingsCatalog.ANDROID));
+        assertFalse(selector.appliesTo(SettingsCatalog.DESKTOP));
     }
 
     @Test public void autoMixReplacesLegacyControlsAndPreservesMasterPreference() {
