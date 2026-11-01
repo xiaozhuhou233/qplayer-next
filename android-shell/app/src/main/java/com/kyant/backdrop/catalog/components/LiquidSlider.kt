@@ -67,10 +67,11 @@ fun LiquidSlider(
         thumb = {
             val adaptive = rememberIosAdaptiveGlass(backdrop)
             val glassHighlight = rememberIosControlGlassHighlight()
+            val blurDp = dev.t1m3.qplayer.android.ui.LocalIosGlassBlur.current
             Box(Modifier.size(40.dp, 24.dp).then(adaptive.modifier).drawBackdrop(
                 backdrop = backdrop, shape = { CircleShape },
                 effects = {
-                    controlGlassEffects(adaptive, refraction)
+                    controlGlassEffects(adaptive, refraction, blurDp = blurDp)
                 },
                 highlight = { glassHighlight.value },
                 shadow = { controlGlassShadow(dark, adaptive) },

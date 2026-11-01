@@ -11,6 +11,8 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.internal.RoundedRectRefractionShaderString
 import com.kyant.backdrop.internal.ApkAdaptiveRefractionShaderString
 import com.kyant.backdrop.internal.RoundedRectRefractionWithDispersionShaderString
+import com.kyant.backdrop.internal.IosReferenceRefractionShaderString
+import com.kyant.backdrop.internal.IosReferenceRefractionWithDispersionShaderString
 import com.kyant.backdrop.internal.RuntimeShaderEffect
 import com.kyant.backdrop.isRuntimeShaderSupported
 
@@ -95,6 +97,28 @@ fun BackdropEffectScope.lens(
             throwUnsupportedSDFException()
         }
     effect(effect)
+}
+
+/** AM++ / AndroidLiquidGlass optics, isolated from QPlayer's sculpted lens. */
+internal fun BackdropEffectScope.iosReferenceLens(height: Float, amount: Float,
+    chromaticAberration: Boolean = false) {
+    if (!isRuntimeShaderSupported() || !height.isFinite() || !amount.isFinite() ||
+        height <= 0f || amount <= 0f || !size.minDimension.isFinite() || size.minDimension <= 0f) return
+    if (padding > 0f) padding = (padding - height).fastCoerceAtLeast(0f)
+    val radii = cornerRadii ?: throwUnsupportedSDFException()
+    val shader = obtainRuntimeShader(
+        if (chromaticAberration) "IosReferenceDispersion" else "IosReferenceLens",
+        if (chromaticAberration) IosReferenceRefractionWithDispersionShaderString else IosReferenceRefractionShaderString)
+    shader.apply {
+        setFloatUniform("size", size.width, size.height)
+        setFloatUniform("offset", -padding, -padding)
+        setFloatUniform("cornerRadii", radii)
+        setFloatUniform("refractionHeight", height)
+        setFloatUniform("refractionAmount", -amount)
+        setFloatUniform("depthEffect", 0f)
+        if (chromaticAberration) setFloatUniform("chromaticAberration", 1f)
+    }
+    effect(RuntimeShaderEffect(shader, "content"))
 }
 
 private val BackdropEffectScope.cornerRadii: FloatArray?

@@ -51,4 +51,26 @@ public class SettingsDesignModeTest {
         assertFalse(settings.bool("iosDesign"));
         assertFalse(settings.bool("claudeDesign"));
     }
+
+    @Test public void iosGlassBlurIsBoundedAndPersistsIndependentlyOfRefraction() {
+        Store store = new Store();
+        SettingsCore settings = load(store);
+        assertEquals(4, settings.intOf(SettingsCatalog.IOS_GLASS_BLUR_KEY));
+        settings.put("iosDesign", true);
+        settings.put(SettingsCatalog.IOS_GLASS_BLUR_KEY, 12);
+        settings.put("iosGlassRefraction", false);
+        settings = load(store);
+        assertEquals(12, settings.intOf(SettingsCatalog.IOS_GLASS_BLUR_KEY));
+        assertFalse(settings.bool("iosGlassRefraction"));
+        settings.put(SettingsCatalog.IOS_GLASS_BLUR_KEY, 99);
+        assertEquals(24, load(store).intOf(SettingsCatalog.IOS_GLASS_BLUR_KEY));
+        settings.put(SettingsCatalog.IOS_GLASS_BLUR_KEY, -5);
+        assertEquals(0, load(store).intOf(SettingsCatalog.IOS_GLASS_BLUR_KEY));
+        SettingSpec spec = settings.rows(SettingsCatalog.APPEARANCE).stream()
+                .filter(row -> row.key.equals(SettingsCatalog.IOS_GLASS_BLUR_KEY))
+                .findFirst().orElseThrow(() -> new AssertionError("Missing glass blur setting"));
+        assertEquals(0, spec.min);
+        assertEquals(24, spec.max);
+        assertEquals("iosDesign", spec.dependsOn);
+    }
 }

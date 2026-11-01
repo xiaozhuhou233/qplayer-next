@@ -96,6 +96,7 @@ internal fun IosAwareAlertDialog(
         if (source != null) source.clients++
         onDispose { if (source != null) source.clients = (source.clients - 1).coerceAtLeast(0) }
     }
+    val blurDp = LocalIosGlassBlur.current
     val refraction = LocalGlassRefraction.current
     Dialog(onDismissRequest, properties = DialogProperties(
         usePlatformDefaultWidth = false, decorFitsSystemWindows = false
@@ -162,7 +163,7 @@ internal fun IosAwareAlertDialog(
                                 scaleY = scaleX
                             }
                             .drawBackdrop(backdrop = backdrop, exportedBackdrop = bottomSheetBackdrop, shape = { shape }, effects = {
-                                apiGlassEffects(plate.luminance(), refraction)
+                                apiGlassEffects(plate.luminance(), refraction, blurDp = blurDp, strongRefraction = true)
                             }, highlight = { RestoredIosDialogHighlight }, shadow = { RestoredIosDialogShadow },
                                 innerShadow = null,
                                 onDrawSurface = {

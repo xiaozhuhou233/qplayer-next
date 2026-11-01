@@ -136,6 +136,7 @@ fun LiquidToggle(
     )
     val adaptive = rememberIosAdaptiveGlass(thumbBackdrop)
     val glassHighlight = rememberIosControlGlassHighlight()
+    val blurDp = dev.t1m3.qplayer.android.ui.LocalIosGlassBlur.current
 
     Box(
         modifier,
@@ -172,7 +173,7 @@ fun LiquidToggle(
                     backdrop = thumbBackdrop,
                     shape = { CircleShape },
                     effects = {
-                        controlGlassEffects(adaptive, refraction)
+                        controlGlassEffects(adaptive, refraction, blurDp = blurDp)
                     },
                     highlight = { glassHighlight.value },
                     shadow = { controlGlassShadow(dark, adaptive) },

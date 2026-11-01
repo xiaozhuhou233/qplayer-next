@@ -133,6 +133,7 @@ internal fun rememberIosPageScroll(route: Any, home: Boolean): Pair<IosPageScrol
 
 @Composable
 internal fun Md3eIosChromeHost(enabled: Boolean, motionActive: Boolean, refraction: Boolean = true,
+    glassBlurDp: Float = 4f,
     content: @Composable () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val backdrop = rememberLayerBackdrop { drawRect(scheme.background); drawContent() }
@@ -140,6 +141,7 @@ internal fun Md3eIosChromeHost(enabled: Boolean, motionActive: Boolean, refracti
     CompositionLocalProvider(
         dev.t1m3.qplayer.android.ui.LocalIosDesign provides enabled,
         LocalGlassRefraction provides refraction,
+        LocalIosGlassBlur provides glassBlurDp.coerceIn(0f, 24f),
         LocalGlassDark provides (scheme.background.luminance() < .5f),
         LocalGlassTint provides scheme.background,
         LocalGlassLuminance provides scheme.background.luminance(),

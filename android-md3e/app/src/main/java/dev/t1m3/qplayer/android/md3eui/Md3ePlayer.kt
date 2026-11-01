@@ -274,11 +274,13 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
         if (dynamicBackground) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = dynamicTransition.progress }) {
                 Md3eDynamicCoverBackdrop(dynamicTransition.presentation, state.cover, Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().dynamicCoverSoftEdges()) {
                 DynamicCoverCard(runtime,
                     Modifier.fillMaxWidth().fillMaxHeight(.72f)
                         .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
                         .padding(vertical = 8.dp).clickable { tab = 1 },
                     presentation = dynamicTransition.presentation, renderVideo = dynamicCover.hasMotion)
+                }
             }
         }
         SideEffect {

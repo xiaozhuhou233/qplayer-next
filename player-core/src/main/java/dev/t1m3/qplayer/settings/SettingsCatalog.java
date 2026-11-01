@@ -24,6 +24,7 @@ public final class SettingsCatalog {
 
     public static final String DESKTOP = "desktop";
     public static final String ANDROID = "android";
+    public static final String IOS_GLASS_BLUR_KEY = "iosGlassBlurDp";
 
     public static final String APPEARANCE = "外观";
     public static final String PLAYBACK = "播放";
@@ -187,6 +188,9 @@ public final class SettingsCatalog {
                 .desc("关闭后仅保留模糊玻璃")
                 .onlyOn(ANDROID)
                 .build());
+        out.add(SettingSpec.slider(IOS_GLASS_BLUR_KEY, APPEARANCE, "玻璃模糊度", 4, 0, 24, 1)
+                .desc("应用于全部 iOS 玻璃控件")
+                .unit(" dp").dependsOn("iosDesign").onlyOn(ANDROID).build());
         out.add(SettingSpec.segmented("darkMode", APPEARANCE, "深色模式", MODE_SYSTEM,
                         "跟随系统", "浅色", "深色")
                 .build());

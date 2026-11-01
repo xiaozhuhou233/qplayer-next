@@ -29,6 +29,8 @@ private val projectAcknowledgements = listOf(
     Acknowledgement("Open-Meteo", "天气模型与当日预报数据 · CC BY 4.0", "https://open-meteo.com/"),
     Acknowledgement("AndroidLiquidGlass", "液态玻璃效果与 API · iOS mode",
         "https://github.com/Kyant0/AndroidLiquidGlass"),
+    Acknowledgement("AM++", "iOS 玻璃材质参数与模糊设置参考",
+        "https://github.com/Zennmn/AM-plus-plus"),
     Acknowledgement("NetEase API", "网易云音乐接口与请求加密参考",
         "https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced"),
     Acknowledgement("PixelPlayer", "MD3 inspiration · MiniPlayer 动效参考",

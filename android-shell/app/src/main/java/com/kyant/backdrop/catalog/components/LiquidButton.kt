@@ -27,7 +27,6 @@ import com.kyant.backdrop.catalog.utils.InteractiveHighlight
 import com.kyant.backdrop.drawBackdrop
 import dev.t1m3.qplayer.android.ui.rememberIosControlGlassHighlight
 import dev.t1m3.qplayer.android.ui.drawControlGlassSurface
-import dev.t1m3.qplayer.android.ui.drawBiliPaiReadabilityScrim
 import dev.t1m3.qplayer.android.ui.controlGlassShadow
 import dev.t1m3.qplayer.android.ui.controlGlassEffects
 import dev.t1m3.qplayer.android.ui.rememberIosAdaptiveGlass
@@ -58,6 +57,7 @@ fun LiquidButton(
     val dark = dev.t1m3.qplayer.android.ui.LocalGlassDark.current
     val adaptive = rememberIosAdaptiveGlass(backdrop)
     val glassHighlight = rememberIosControlGlassHighlight()
+    val blurDp = dev.t1m3.qplayer.android.ui.LocalIosGlassBlur.current
     val animationScope = rememberCoroutineScope()
 
     val interactiveHighlight = remember(animationScope) {
@@ -77,6 +77,7 @@ fun LiquidButton(
                     controlGlassEffects(
                         adaptive = adaptive,
                         refraction = refraction,
+                        blurDp = blurDp,
                     )
                 },
                 layerBlock = if (isInteractive) {

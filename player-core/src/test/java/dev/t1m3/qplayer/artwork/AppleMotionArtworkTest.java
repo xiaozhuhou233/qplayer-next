@@ -102,8 +102,9 @@ public class AppleMotionArtworkTest {
             "{\"collectionId\":6771926310,\"collectionName\":\"Live\",\"artistName\":\"KUN\",\"trackName\":\"Deadman (Live at Apple Music Radio)\"}," +
             "{\"collectionId\":\"../bad\",\"collectionName\":\"Deadman\",\"trackName\":\"Deadman\"}]}";
         java.util.List<AppleMotionArtwork.CatalogAlbum> mapped = AppleMotionArtwork.itunesAlbums(json, "Deadman", "Deadman", "蔡徐坤");
-        assertEquals(2, mapped.size()); assertEquals("1812117264", mapped.get(0).id);
-        assertEquals("KUN", mapped.get(1).name);
+        assertEquals(2, mapped.size()); assertEquals("1861576981", mapped.get(0).id);
+        assertEquals("KUN", mapped.get(0).name);
+        assertEquals("1812117264", mapped.get(1).id);
         assertTrue(AppleMotionArtwork.isAppleHttps("https://itunes.apple.com/search?term=Deadman"));
         assertFalse(AppleMotionArtwork.isAppleHttps("https://itunes.apple.com.evil.test/search"));
     }
@@ -149,6 +150,28 @@ public class AppleMotionArtworkTest {
             song("Deadman", "蔡徐坤", "", "3", "Unknown Recording"),
             song("Deadman", "蔡徐坤", "QM6P42575146", "../bad", "Invalid"));
         assertTrue(AppleMotionArtwork.catalogSongAlbums(json, "Anything", "Deadman", "蔡徐坤").isEmpty());
+    }
+    @Test public void prefersOfficialFullAlbumEvenWhenTheSourceCallsTheSongASingle() {
+        String json = songSearch(
+            song("Deadman", "蔡徐坤", "QM6P42575146", "1812117264", "Deadman - Single"),
+            song("Deadman", "蔡徐坤", "QM6P42575146", "1861576981", "KUN"));
+        java.util.List<AppleMotionArtwork.CatalogAlbum> mapped = AppleMotionArtwork.catalogSongAlbums(
+                json, "Deadman - Single", "Deadman", "蔡徐坤");
+        assertEquals(2, mapped.size());
+        assertEquals("KUN", mapped.get(0).name);
+        assertEquals("蔡徐坤", mapped.get(0).artist);
+    }
+    @Test public void keepsVerifiedOfficialAlbumNameWhenExpandedAlbumRelationshipIsMissing() {
+        JsonObject track = song("Shape of You", "Ed Sheeran", "GBAHS1600463", "1193701079", "÷ (Deluxe)");
+        track.remove("relationships");
+        java.util.List<AppleMotionArtwork.CatalogAlbum> mapped = AppleMotionArtwork.catalogSongAlbums(
+                songSearch(track), "Shape of You - Single", "Shape of You", "Ed Sheeran");
+        assertEquals(1, mapped.size());
+        assertEquals("÷ (Deluxe)", mapped.get(0).name);
+        assertEquals("", mapped.get(0).id);
+        assertEquals("GBAHS1600463", mapped.get(0).recording);
+        assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(track), "", "Shape of You (Live)", "Ed Sheeran").isEmpty());
+        assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(track), "", "Shape of You", "Someone Else").isEmpty());
     }
     @Test public void fallsBackToOfficialAppleArtworkWhenMotionPreviewIsMissing() {
         JsonObject row = album("KUN", "蔡徐坤"), attributes = row.getAsJsonObject("attributes");

@@ -13,7 +13,7 @@
 //      which this Compose version does not offer; and the selection flow keeps the
 //      restart-safety the route recompositions need (see the two LaunchedEffects).
 // The reference's drag physics and recorded accent-tinted foreground are preserved.
-// Material now uses BiliPai's default BALANCED shell and separate indicator optics.
+// Material follows the AM++ embedded panel and selection optical parameters.
 package com.kyant.backdrop.catalog.components
 
 import androidx.compose.animation.core.Animatable
@@ -62,11 +62,11 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.utils.DampedDragAnimation
 import com.kyant.backdrop.catalog.utils.InteractiveHighlight
 import com.kyant.backdrop.drawBackdrop
-import dev.t1m3.qplayer.android.ui.rememberBiliPaiGlassHighlight
+import com.kyant.backdrop.highlight.Highlight
 import dev.t1m3.qplayer.android.ui.iosGlassShadow
-import dev.t1m3.qplayer.android.ui.BiliPaiGlassParameters
-import dev.t1m3.qplayer.android.ui.drawBiliPaiGlassSurface
-import dev.t1m3.qplayer.android.ui.biliPaiIndicatorEffects
+import com.kyant.backdrop.shadow.Shadow
+import dev.t1m3.qplayer.android.ui.drawIosPanelGlassSurface
+import dev.t1m3.qplayer.android.ui.iosIndicatorEffects
 import com.kyant.backdrop.shadow.InnerShadow
 import dev.t1m3.qplayer.android.ui.LocalGlassRefraction
 import dev.t1m3.qplayer.android.ui.rememberRegionAdaptiveGlass
@@ -93,9 +93,8 @@ fun LiquidBottomTabs(
     require(tabsCount > 1)
     val refraction = LocalGlassRefraction.current
     // The reference's own two colour pairs, keyed on the app's theme flag.
-    val accentColor = androidx.compose.ui.graphics.lerp(
-        MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onSurface,
-        BiliPaiGlassParameters.contentReadabilityBoost * 0.65f)
+    val accentColor = if (dark) Color(0xFF0091FF) else Color(0xFF0088FF)
+    val blurDp = dev.t1m3.qplayer.android.ui.LocalIosGlassBlur.current
     // Sample the raw background under this plate, not the entire dock.
     val adaptive = rememberRegionAdaptiveGlass(backdrop)
 
@@ -111,10 +110,8 @@ fun LiquidBottomTabs(
         val tabWidth = with(density) {
             (constraints.maxWidth.toFloat() - 8f.dp.toPx()) / tabsCount
         }
-        val baseHighlight = rememberBiliPaiGlassHighlight()
-        val pillHighlight = rememberBiliPaiGlassHighlight(indicator = true,
-            width = BiliPaiGlassParameters.indicatorHighlightWidthDp(
-                with(density) { tabWidth.toDp().value }, 56f).dp)
+        val baseHighlight = Highlight.Default
+        val pillHighlight = Highlight.Default
 
         val offsetAnimation = remember { Animatable(0f) }
         val panelOffset by remember(density, constraints.maxWidth) {
@@ -203,9 +200,9 @@ fun LiquidBottomTabs(
                     backdrop = backdrop,
                     shape = { CircleShape },
                     effects = {
-                        apiGlassEffects(adaptive.luminance, refraction, strongRefraction = true)
+                        apiGlassEffects(adaptive.luminance, refraction, blurDp = blurDp, strongRefraction = true)
                     },
-                    highlight = { baseHighlight.value },
+                    highlight = { baseHighlight },
                     shadow = { iosGlassShadow(adaptive.luminance < .5f) },
                     innerShadow = null,
                     layerBlock = {
@@ -214,7 +211,7 @@ fun LiquidBottomTabs(
                         scaleX = scale
                         scaleY = scale
                     },
-                    onDrawSurface = { drawBiliPaiGlassSurface(adaptive.luminance < .5f) }
+                    onDrawSurface = { drawIosPanelGlassSurface(adaptive.luminance < .5f) }
                 )
                 .then(interactiveHighlight.modifier)
                 .height(64f.dp)
@@ -242,12 +239,12 @@ fun LiquidBottomTabs(
                         backdrop = backdrop,
                         shape = { CircleShape },
                         effects = {
-                            apiGlassEffects(adaptive.luminance, refraction, shellHeightDp = 64f, strongRefraction = true)
+                            apiGlassEffects(adaptive.luminance, refraction, refractionProgress = dampedDragAnimation.pressProgress, blurDp = blurDp, strongRefraction = true)
                         },
                         highlight = null,
                         // Only the visible plate casts a shadow; this is the lens's source.
                         shadow = null,
-                        onDrawSurface = { drawBiliPaiGlassSurface(adaptive.luminance < .5f) }
+                        onDrawSurface = { drawIosPanelGlassSurface(adaptive.luminance < .5f) }
                     )
                     .then(interactiveHighlight.modifier)
                     .height(56f.dp)
@@ -274,25 +271,25 @@ fun LiquidBottomTabs(
                     shape = { CircleShape },
                     effects = {
                         val progress = dampedDragAnimation.pressProgress
-                        biliPaiIndicatorEffects(refraction, progress)
+                        iosIndicatorEffects(refraction, progress)
                     },
                     highlight = {
                         val progress = dampedDragAnimation.pressProgress
-                        pillHighlight.value.copy(alpha = progress)
+                        pillHighlight.copy(alpha = progress)
                     },
-                    shadow = null,
+                    shadow = { Shadow.Default.copy(alpha = dampedDragAnimation.pressProgress.coerceIn(0f, 1f)) },
                     innerShadow = {
                         val progress = dampedDragAnimation.pressProgress
                         if (refraction) InnerShadow(
-                            radius = BiliPaiGlassParameters.innerShadowRadiusDp.dp * progress,
-                            color = Color.Black.copy(alpha = BiliPaiGlassParameters.innerShadowAlpha),
+                            radius = 8.dp * progress,
+                            color = Color.Black.copy(alpha = .15f),
                             alpha = progress,
                         ) else null
                     },
                     layerBlock = {
                         scaleX = dampedDragAnimation.scaleX
                         scaleY = dampedDragAnimation.scaleY
-                        val velocity = dampedDragAnimation.velocity / 10f
+                        val velocity = dampedDragAnimation.velocity / 10f * dampedDragAnimation.pressProgress
                         scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                         scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                     },

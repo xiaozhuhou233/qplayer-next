@@ -40,7 +40,7 @@ internal object Md3eDynamicCoverSource {
             currentCoroutineContext().ensureActive()
             if (!networkAllowed() || artist.isBlank() || (album.isBlank() && title.isBlank())) return@withLock null
             val directory = File(context.cacheDir, "apple-motion-v1").apply { mkdirs() }
-            val key = digest("hls-v1|$apiBaseUrl|$storefront|${album.trim().lowercase(Locale.ROOT)}|${artist.trim().lowercase(Locale.ROOT)}|${title.trim().lowercase(Locale.ROOT)}")
+            val key = digest("song-album-v2|$apiBaseUrl|$storefront|${album.trim().lowercase(Locale.ROOT)}|${artist.trim().lowercase(Locale.ROOT)}|${title.trim().lowercase(Locale.ROOT)}")
             val now = System.currentTimeMillis()
             memory[key]?.let { if (now < it.expires) return@withLock it.cover }
             val metadata = File(directory, "$key.json")
@@ -58,7 +58,7 @@ internal object Md3eDynamicCoverSource {
                 }
             }
             val cover = if (apiBaseUrl.isNotBlank()) resolveEndpoint(apiBaseUrl, album, artist, storefront, networkAllowed)
-                else search(context, album, artist, title, networkAllowed)?.let {
+                else search(context, album, artist, title, storefront, networkAllowed)?.let {
                     DynamicCover(it.square.takeIf(String::isNotBlank), it.tall.takeIf(String::isNotBlank), it.preview, it.album, it.artist)
                 }
             currentCoroutineContext().ensureActive()
@@ -117,12 +117,12 @@ internal object Md3eDynamicCoverSource {
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 
     private suspend fun search(context: Context, album: String, artist: String, title: String,
-        allowed: () -> Boolean): AppleMotionArtwork.Cover? {
+        storefront: String, allowed: () -> Boolean): AppleMotionArtwork.Cover? {
         var bearer = webToken(context, allowed)
-        val chineseCatalog = (album + artist).any { it in '\u3400'..'\u9fff' }
         val chineseArtist = artist.any { it in '\u3400'..'\u9fff' }
-        val regions = if (chineseCatalog) listOf("cn", "us", "hk") else listOf("us", "gb")
-        // A localized storefront keeps 蔡徐坤/KUN and similar artist aliases consistent.
+        val preferred = storefront.lowercase(Locale.ROOT).takeIf { it.matches(Regex("[a-z]{2}")) } ?: "us"
+        val regions = (if (chineseArtist) listOf("cn", preferred, "us", "hk")
+            else listOf(preferred, "us", "gb")).distinct().take(3)
         val locale = if (chineseArtist) "&l=zh-Hans-CN" else ""
         suspend fun catalog(path: String): String {
             val url = "https://amp-api.music.apple.com/v1/catalog/$path$locale"
@@ -134,79 +134,88 @@ internal object Md3eDynamicCoverSource {
             }
         }
         val details = mutableMapOf<Pair<String, String>, String>()
-        suspend fun detail(region: String, id: String): String {
+        suspend fun detail(region: String, id: String): String? {
             val key = region to id
             details[key]?.let { return it }
-            return catalog("$region/albums/$id?extend=editorialVideo").also { details[key] = it }
+            return try {
+                catalog("$region/albums/$id?extend=editorialVideo&include=tracks&limit%5Btracks%5D=100")
+                    .also { details[key] = it }
+            } catch (failure: HttpFailure) { if (failure.status == 404) null else throw failure }
         }
         val recordings = mutableSetOf<String>()
-        // Public, unauthenticated Apple metadata maps the current song to official
-        // collection names/IDs first. No guessing a localized album name is needed.
+        val searched = mutableSetOf<Triple<String, String, String>>()
+        val parentSearches = mutableListOf<Pair<String, String>>()
+        suspend fun officialAlbum(region: String, mapped: AppleMotionArtwork.CatalogAlbum,
+            verifiedArtist: String): AppleMotionArtwork.Cover? {
+            val official = mapped.id.takeIf { it.isNotBlank() }?.let { detail(region, it) }
+            if (title.isBlank()) return official?.let { AppleMotionArtwork.parseAlbum(it, mapped.name, verifiedArtist) }
+            val identities = if (mapped.recording.isNotBlank()) setOf(mapped.recording) else official?.let {
+                AppleMotionArtwork.matchingTrackIsrcs(it, mapped.name, title, verifiedArtist)
+            }.orEmpty()
+            if (identities.isEmpty()) return null
+            recordings += identities
+            official?.let { AppleMotionArtwork.parseContainingAlbum(it, title, verifiedArtist, identities)?.let { return it } }
+            // Search Apple's own album name, never a NetEase single's display name.
+            if (!searched.add(Triple(region, mapped.name, verifiedArtist))) return null
+            val term = encode("${mapped.name} $verifiedArtist")
+            val albums = catalog("$region/search?term=$term&types=albums&limit=15&extend=editorialVideo")
+            parentSearches += region to albums
+            for (id in AppleMotionArtwork.candidateAlbumIds(albums, mapped.name, verifiedArtist, true).take(3)) {
+                val candidate = detail(region, id) ?: continue
+                AppleMotionArtwork.parseContainingAlbum(candidate, title, verifiedArtist, identities)?.let { return it }
+            }
+            return null
+        }
+        if (title.isNotBlank()) {
+            val term = encode("$title $artist")
+            // Primary route: verified Apple song -> its canonical album name/ID -> artwork.
+            for (region in regions) {
+                val songs = try {
+                    catalog("$region/search?term=$term&types=songs&limit=15&include%5Bsongs%5D=albums")
+                } catch (failure: HttpFailure) { if (failure.status == 404) continue else throw failure }
+                for (mapped in AppleMotionArtwork.catalogSongAlbums(songs, album, title, artist).take(4)) {
+                    officialAlbum(region, mapped, mapped.artist)?.let { return it }
+                }
+            }
+        }
+        // Public iTunes song metadata is a fallback when a regional catalog misses the track.
         try {
-            val hasTitle = title.isNotBlank()
-            val term = URLEncoder.encode("${if (hasTitle) title else album} $artist", "UTF-8")
-            val entity = if (hasTitle) "song" else "album"
+            val term = encode("${title.ifBlank { album }} $artist")
+            val entity = if (title.isBlank()) "album" else "song"
             val json = fetch("https://itunes.apple.com/search?term=$term&entity=$entity&country=US&limit=15",
                 allowed = allowed).toString(Charsets.UTF_8)
             for (mapped in AppleMotionArtwork.itunesAlbums(json, album, title, artist).take(4)) {
-                val official = try { detail("us", mapped.id) }
-                catch (failure: HttpFailure) { if (failure.status == 404) continue else throw failure }
-                if (!hasTitle) {
-                    AppleMotionArtwork.parseAlbum(official, mapped.name, artist)?.let { return it }
-                    continue
-                }
-                val matched = AppleMotionArtwork.matchingTrackIsrcs(official, mapped.name, title, artist)
-                if (matched.isEmpty()) continue
-                if (AppleMotionArtwork.albumSimilarity(album, mapped.name) >= .55) recordings += matched
-                // Catalog detail verifies the localized artist and exact song.
-                // Where the source single is known, also require its recording ID.
-                AppleMotionArtwork.parseContainingAlbum(official, title, artist,
-                    recordings.ifEmpty { matched })?.let { return it }
+                // iTunes aliases are untrusted until the localized album's tracks verify them.
+                officialAlbum("us", mapped, artist)?.let { return it }
             }
         } catch (failure: Exception) {
             currentCoroutineContext().ensureActive()
             check(allowed()) { "Dynamic cover network policy changed" }
             android.util.Log.w("DynamicCover", "Apple metadata mapping unavailable: ${failure.javaClass.simpleName}")
         }
-        if (title.isNotBlank()) {
-            // iTunes can miss regional releases. Search Apple Music by song + artist,
-            // and follow its album relationships rather than the source's single title.
-            val term = URLEncoder.encode("$title $artist", "UTF-8")
+        if (title.isBlank()) {
             for (region in regions) {
-                val songs = catalog("$region/search?term=$term&types=songs&limit=15&include%5Bsongs%5D=albums")
-                val mappedAlbums = AppleMotionArtwork.catalogSongAlbums(songs, album, title, artist).take(3)
-                for (mapped in mappedAlbums) {
-                    val official = try { detail(region, mapped.id) }
-                    catch (failure: HttpFailure) { if (failure.status == 404) continue else throw failure }
-                    AppleMotionArtwork.parseContainingAlbum(official, title, artist,
-                        recordings.ifEmpty { setOf(mapped.recording) })?.let { return it }
+                val query = encode("${AppleMotionArtwork.normalizeAlbum(album)} $artist")
+                val albums = catalog("$region/search?term=$query&types=albums&limit=15&extend=editorialVideo")
+                AppleMotionArtwork.parseSearch(albums, album, artist)?.let { return it }
+                for (id in AppleMotionArtwork.candidateAlbumIds(albums, album, artist, true).take(3)) {
+                    detail(region, id)?.let { AppleMotionArtwork.parseAlbum(it, album, artist)?.let { return it } }
                 }
             }
-        }
-        val searches = mutableListOf<Pair<String, String>>()
-        val query = URLEncoder.encode("${AppleMotionArtwork.normalizeAlbum(album)} $artist", "UTF-8")
-        for (region in regions) {
-            val json = catalog("$region/search?term=$query&types=albums&limit=15&extend=editorialVideo")
-            AppleMotionArtwork.parseSearch(json, album, artist)?.let { return it }
-            searches += region to json
-        }
-        // Some search responses omit editorialVideo even when the album detail includes it.
-        val exact = searches.flatMap { (region, json) ->
-            AppleMotionArtwork.candidateAlbumIds(json, album, artist, true).map { region to it }
-        }.distinct().take(4)
-        for ((region, id) in exact) {
-            val json = detail(region, id)
-            AppleMotionArtwork.parseAlbum(json, album, artist)?.let { return it }
-            recordings += AppleMotionArtwork.matchingTrackIsrcs(json, album, title, artist)
-        }
-        if (recordings.isNotEmpty()) {
-            // Deadman, for example, has motion on KUN, not on its original single.
-            // Only use a parent album after verifying track title, artist and ISRC.
-            val parents = searches.flatMap { (region, json) ->
-                AppleMotionArtwork.candidateAlbumIds(json, album, artist, false).map { region to it }
-            }.distinct().filter { it !in exact }.take(4)
+        } else if (recordings.isNotEmpty()) {
+            // A song may only point to its standalone single. Search the same artist's
+            // albums, but accept a parent only when that exact song AND ISRC is present.
+            for (region in regions) {
+                val query = encode(artist)
+                parentSearches += region to catalog("$region/search?term=$query&types=albums&limit=15&extend=editorialVideo")
+            }
+            val parents = parentSearches.flatMap { (region, json) ->
+                AppleMotionArtwork.candidateAlbumIds(json, "", artist, false).map { region to it }
+            }.distinct().take(6)
             for ((region, id) in parents) {
-                AppleMotionArtwork.parseContainingAlbum(detail(region, id), title, artist, recordings)?.let { return it }
+                detail(region, id)?.let {
+                    AppleMotionArtwork.parseContainingAlbum(it, title, artist, recordings)?.let { return it }
+                }
             }
         }
         return null

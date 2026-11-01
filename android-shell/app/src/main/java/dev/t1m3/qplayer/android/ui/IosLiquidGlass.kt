@@ -23,7 +23,7 @@ import kotlin.math.tanh
 /**
  * The app's single Backdrop glass surface.
  *
- * Shared BiliPai BALANCED material with its default STABLE readability mode.
+ * AM++ panel/button material, with QPlayer's existing foreground readability.
  * The backdrop remains live; foreground contrast uses the theme, without readback.
  * The interaction transform, edge highlight, shadow and content stay in one
  * drawBackdrop node. Splitting these into sibling Boxes changes the coordinate
@@ -83,6 +83,7 @@ internal fun iosLiquidGlassModifier(
     strongRefraction: Boolean = false,
 ): Modifier {
     val refraction = LocalGlassRefraction.current
+    val blurDp = LocalIosGlassBlur.current
     val glassHighlight = if (lite) null else rememberIosControlGlassHighlight()
     return Modifier
         .then(adaptive.modifier)
@@ -91,7 +92,7 @@ internal fun iosLiquidGlassModifier(
             shape = { shape },
             effects = {
                 apiGlassEffects(adaptive.luminance, refraction && !lite,
-                    strongRefraction = strongRefraction)
+                    blurDp = blurDp, strongRefraction = strongRefraction)
             },
             layerBlock = interaction?.let { highlight ->
                 {
@@ -122,7 +123,7 @@ internal fun iosLiquidGlassModifier(
                 if (surfaceTint.isSpecified) {
                     drawRect(surfaceTint, blendMode = BlendMode.Hue)
                     drawRect(surfaceTint.copy(alpha = .75f))
-                } else drawControlGlassSurface(dark, adaptive)
+                } else if (strongRefraction) drawIosPanelGlassSurface(adaptive.luminance < .5f)
             },
         )
         // The glass shadow is outside; pointer highlights must stay inside its contour.

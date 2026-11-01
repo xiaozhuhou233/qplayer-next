@@ -107,7 +107,8 @@ internal fun Md3eApp(runtime: Md3eRuntime, onDarkAppearance: (Boolean) -> Unit,
         typography = when { sonicDesign -> dev.t1m3.qplayer.android.md3eui.sonic.AppTypography; claudeDesign -> ClaudeTypography; else -> Md3eTypography },
         shapes = if (sonicDesign) Shapes() else ClaudeShapes) {
         Md3eIosChromeHost(iosDesign, pageMotionActive || playerExpansion.moving || runtime.transportMotionActive,
-            refraction = runtime.settings.bool("iosGlassRefraction")) {
+            refraction = runtime.settings.bool("iosGlassRefraction"),
+            glassBlurDp = runtime.settings.intOf(dev.t1m3.qplayer.settings.SettingsCatalog.IOS_GLASS_BLUR_KEY).toFloat()) {
         CompositionLocalProvider(LocalContentColor provides scheme.onSurface,
             LocalClaudeDesign provides claudeDesign,
             LocalSonicDesign provides sonicDesign,

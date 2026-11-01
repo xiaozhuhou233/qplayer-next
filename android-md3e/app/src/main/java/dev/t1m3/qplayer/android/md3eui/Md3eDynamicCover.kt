@@ -241,7 +241,7 @@ internal fun DynamicCoverCard(runtime: Md3eRuntime, modifier: Modifier = Modifie
         key(runtime.playback.songId, motion?.preferredVideoUrl) {
             Box(Modifier.width(width).height(height)
                 .graphicsLayer { scaleX = 1.03f; scaleY = 1.03f }
-                .dynamicCoverSoftEdges().background(Color(0xFF1C1B20))) {
+                .background(Color(0xFF1C1B20))) {
                 // The ordinary artwork stays underneath until the Apple preview is available.
                 Artwork(fallback, Modifier.fillMaxSize(), corner = 0.dp, contentScale = ContentScale.Crop)
                 preview?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }

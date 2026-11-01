@@ -29,6 +29,7 @@ import kotlin.math.roundToInt
 // Only rows with an MD3E consumer are presented. The layout and controls follow
 // the old SettingsCatalog-driven Android screen.
 private val md3eSettingKeys = setOf(
+    SettingsCatalog.IOS_GLASS_BLUR_KEY,
     SettingsCatalog.LOW_SPEC_MODE_KEY, SettingsCatalog.PAGE_TRANSITION_KEY,
     "claudeDesign", "iosDesign", "sonicDesign", "sonicDisplayFonts", "iosGlassRefraction", "darkMode", "showLocalTab", "monet", "paletteStyle", "palettePreset", "paletteChroma", "maxCacheSizeMB",
     "lyricFontSize", "lyricLineSpacing", "lyricSpring", "lyricScale", "lyricEdgeBlur",

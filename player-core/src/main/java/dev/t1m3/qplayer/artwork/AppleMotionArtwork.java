@@ -131,12 +131,20 @@ public final class AppleMotionArtwork {
         return parseSearch(asSearch(detailRows(json)), album, artist);
     }
     public static final class CatalogAlbum {
-        public final String id, name, recording;
+        public final String id, name, recording, artist;
         private final double rank;
-        CatalogAlbum(String id, String name, double rank) { this(id, name, "", rank); }
-        CatalogAlbum(String id, String name, String recording, double rank) {
-            this.id = id; this.name = name; this.recording = recording; this.rank = rank;
+        CatalogAlbum(String id, String name, String artist, String recording, double rank) {
+            this.id = id; this.name = name; this.artist = artist;
+            this.recording = recording; this.rank = rank;
         }
+    }
+    /** Prefer the full Apple release over a source platform's independently named single. */
+    private static double officialAlbumRank(String name, String sourceAlbum, JsonObject attrs) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        boolean single = lower.matches(".*\\s[-–—]\\s*(?:single|ep)\\s*$");
+        int tracks = 0;
+        try { tracks = Integer.parseInt(str(attrs, "trackCount")); } catch (NumberFormatException ignored) { }
+        return (single ? -2 : 1) + (tracks > 5 ? 1 : 0) + .1 * albumSimilarity(sourceAlbum, name);
     }
     /** Public iTunes metadata supplies Apple's own collection names and IDs.
      * Artist aliases are checked against localized catalog details, never trusted here. */
@@ -153,8 +161,8 @@ public final class AppleMotionArtwork {
             if (!normalizeAlbum(title).isEmpty()) {
                 if (albumSimilarity(title, str(row, "trackName")) != 1) continue;
             } else if (albumSimilarity(album, name) < .55) continue;
-            if (seen.add(id)) albums.add(new CatalogAlbum(id, name,
-                    2 * albumSimilarity(album, name) + similarity(artist, str(row, "artistName"))));
+            if (seen.add(id)) albums.add(new CatalogAlbum(id, name, str(row, "artistName"), "",
+                    officialAlbumRank(name, album, row) + similarity(artist, str(row, "artistName"))));
         }
         albums.sort((a, b) -> Double.compare(b.rank, a.rank));
         return albums;
@@ -172,15 +180,21 @@ public final class AppleMotionArtwork {
             if (recording.isEmpty() || albumSimilarity(title, str(attrs, "name")) != 1 ||
                     similarity(artist, str(attrs, "artistName")) < .45) continue;
             JsonArray parents = obj(obj(row, "relationships"), "albums").getAsJsonArray("data");
-            if (parents == null) continue;
-            for (JsonElement parent : parents) {
+            for (JsonElement parent : parents == null ? new JsonArray() : parents) {
                 if (!parent.isJsonObject()) continue;
                 JsonObject data = parent.getAsJsonObject();
                 String id = str(data, "id"), name = str(obj(data, "attributes"), "name");
                 if (name.isEmpty()) name = str(attrs, "albumName");
                 if (id.matches("[0-9]+") && !name.isEmpty() && seen.add(id))
-                    albums.add(new CatalogAlbum(id, name, recording, albumSimilarity(album, name)));
+                    albums.add(new CatalogAlbum(id, name, str(attrs, "artistName"), recording,
+                            officialAlbumRank(name, album, obj(data, "attributes"))));
             }
+            // Some storefronts return albumName but omit expanded relationships.
+            // The caller must search this canonical name and verify the recording.
+            String name = str(attrs, "albumName");
+            if ((parents == null || parents.size() == 0) && !name.isEmpty() && seen.add("name:" + name))
+                albums.add(new CatalogAlbum("", name, str(attrs, "artistName"), recording,
+                        officialAlbumRank(name, album, new JsonObject())));
         }
         albums.sort((a, b) -> Double.compare(b.rank, a.rank));
         return albums;

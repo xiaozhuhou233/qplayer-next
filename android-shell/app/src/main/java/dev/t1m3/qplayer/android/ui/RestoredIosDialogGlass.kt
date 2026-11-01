@@ -32,9 +32,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.effects.apkAdaptiveLens
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -210,7 +207,7 @@ internal fun rememberLiveIosGlass(backdrop: Backdrop): IosAdaptiveGlassState {
 
 /**
  * Dialog-only restoration from glass-before-bilipai-20261002-163859.
- * False outside IosAwareAlertDialog: the rest of the app keeps BiliPai.
+ * False outside IosAwareAlertDialog; layout/sampling retained with shared AM++ optics.
  */
 internal val LocalRestoredIosDialogGlass = staticCompositionLocalOf { false }
 internal val RestoredIosDialogHighlight = Highlight.Plain
@@ -241,25 +238,21 @@ internal fun rememberIosControlGlassHighlight(): State<Highlight> {
     if (LocalRestoredIosDialogGlass.current) {
         return remember { mutableStateOf(RestoredIosDialogHighlight) }
     }
-    return rememberBiliPaiGlassHighlight()
+    return remember { mutableStateOf(Highlight.Default) }
 }
 
 internal fun BackdropEffectScope.restoredDialogGlassEffects(
     luminance: Float,
     refraction: Boolean,
-    blurDp: Float = androidGlassOptics(luminance).blurDp,
+    blurDp: Float = 4f,
 ) {
-    val optics = androidGlassOptics(luminance)
-    colorControls(brightness = optics.brightness, contrast = optics.contrast,
-        saturation = optics.saturation)
-    blur(blurDp * density)
-    if (refraction) apkAdaptiveLens()
+    apiGlassEffects(luminance, refraction, blurDp = blurDp)
 }
 
 internal fun BackdropEffectScope.controlGlassEffects(
     adaptive: IosAdaptiveGlassState,
     refraction: Boolean,
-    blurDp: Float = androidGlassOptics(adaptive.luminance).blurDp,
+    blurDp: Float = 4f,
 ) {
     if (adaptive.restoredDialog) restoredDialogGlassEffects(adaptive.luminance, refraction, blurDp)
     else apiGlassEffects(adaptive.luminance, refraction, blurDp = blurDp)
@@ -268,7 +261,7 @@ internal fun BackdropEffectScope.controlGlassEffects(
 internal fun controlGlassShadow(dark: Boolean, adaptive: IosAdaptiveGlassState): Shadow =
     if (adaptive.restoredDialog) RestoredIosDialogShadow else iosGlassShadow(adaptive.luminance < .5f)
 
+@Suppress("UNUSED_PARAMETER")
 internal fun DrawScope.drawControlGlassSurface(dark: Boolean, adaptive: IosAdaptiveGlassState) {
-    // The restored dialog material has no extra white/scrim fill.
-    if (!adaptive.restoredDialog) drawBiliPaiGlassSurface(adaptive.luminance < .5f)
+    // AM++ LiquidButton leaves untinted control surfaces clear.
 }
