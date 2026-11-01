@@ -183,6 +183,32 @@ public class AppleMotionArtworkTest {
         artwork.addProperty("url", "https://evil.test/image.jpg");
         assertEquals("", AppleMotionArtwork.parseSearch(search(row), "KUN", "蔡徐坤").preview);
     }
+    @Test public void featuringCreditsDoNotHideSuncityOrLogicAlbumRelationships() {
+        for (String[] item : new String[][] {
+            {"Suncity", "Suncity (feat. Empress Of)", "Khalid", "Suncity", "USRC11803519"},
+            {"1-800-273-8255", "1-800-273-8255 (feat. Alessia Cara & Khalid)", "Logic", "Everybody", "USUM71702906"}
+        }) {
+            String plain = item[0], credited = item[1], artist = item[2], name = item[3], isrc = item[4];
+            java.util.List<AppleMotionArtwork.CatalogAlbum> mapped = AppleMotionArtwork.catalogSongAlbums(songSearch(song(credited, artist, isrc, "123", name)), "", plain, artist);
+            assertEquals(1, mapped.size()); assertEquals(name, mapped.get(0).name);
+            String parent = detail(album(name, artist), credited, artist, isrc);
+            java.util.Set<String> recordings = AppleMotionArtwork.matchingTrackIsrcs(parent, name, plain, artist);
+            assertEquals(Collections.singleton(isrc), recordings);
+            assertNotNull(AppleMotionArtwork.parseContainingAlbum(parent, plain, artist, recordings));
+            assertNull(AppleMotionArtwork.parseContainingAlbum(parent, plain, artist, Collections.singleton("OTHER")));
+            assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(song(credited + " (Live)", artist, isrc, "123", name)), "", plain, artist).isEmpty());
+            assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(song(credited, "Other Artist", isrc, "123", name)), "", plain, artist).isEmpty());
+        }
+    }
+    @Test public void featuringSuffixesWorkInBothDirectionsButNeverDiscardRemixIdentity() {
+        for (String title : new String[] {"Suncity (feat. Empress Of)", "Suncity ft. Empress Of", "Suncity [featuring Empress Of]"}) {
+            assertEquals(1, AppleMotionArtwork.catalogSongAlbums(songSearch(song("Suncity", "Khalid", "ISRC", "123", "Suncity")), "", title, "Khalid").size());
+            String json = "{\"results\":[{\"collectionId\":123,\"collectionName\":\"Suncity\",\"artistName\":\"Khalid\",\"trackName\":\"" + title + "\"}]}";
+            assertEquals(1, AppleMotionArtwork.itunesAlbums(json, "", "Suncity", "Khalid").size());
+        }
+        assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(song("Suncity feat. Empress Of (Remix)", "Khalid", "ISRC", "123", "Suncity")), "", "Suncity", "Khalid").isEmpty());
+        assertTrue(AppleMotionArtwork.catalogSongAlbums(songSearch(song("Suncity (Acoustic)", "Khalid", "ISRC", "123", "Suncity")), "", "Suncity", "Khalid").isEmpty());
+    }
     private String token(String issuer, long expiry) {
         String payload = "{\"iss\":\"" + issuer + "\",\"exp\":" + expiry + "}";
         return "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9." + Base64.getUrlEncoder().withoutPadding()

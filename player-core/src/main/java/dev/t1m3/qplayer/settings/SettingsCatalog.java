@@ -75,6 +75,8 @@ public final class SettingsCatalog {
     public static final String DYNAMIC_COVER_API_BASE_KEY = "dynamicCoverApiBaseUrl";
     public static final String DYNAMIC_COVER_STOREFRONT_KEY = "dynamicCoverStorefront";
     public static final String DYNAMIC_COVER_NETWORK_KEY = "dynamicCoverNetwork";
+    public static final String DYNAMIC_COVER_BLUR_KEY = "dynamicCoverBlurMask";
+    public static final String DYNAMIC_COVER_EDGE_POSITION_KEY = "dynamicCoverEdgePosition";
     public static final int BG_STYLE_PIXI_RENDERER = 0;
     public static final int BG_STYLE_MESH_GRADIENT = 1;
     public static final int BG_STYLE_CLASSIC = 2;
@@ -173,6 +175,11 @@ public final class SettingsCatalog {
                 .desc("视频随音乐暂停；不可用时显示普通封面")
                 .onlyOn(ANDROID)
                 .build());
+        out.add(SettingSpec.toggle(DYNAMIC_COVER_BLUR_KEY, APPEARANCE, "动态封面模糊遮罩", true)
+                .desc("底部倒影与柔化过渡").onlyOn(ANDROID).build());
+        out.add(SettingSpec.slider(DYNAMIC_COVER_EDGE_POSITION_KEY, APPEARANCE, "模糊与倒影起点", 72, 40, 90, 1)
+                .desc("上下移动封面下沿的过渡位置").unit("% 屏高")
+                .dependsOn(DYNAMIC_COVER_BLUR_KEY).onlyOn(ANDROID).build());
         out.add(SettingSpec.segmented(DYNAMIC_COVER_NETWORK_KEY, APPEARANCE, "动态封面联网", 0,
                         "仅 Wi-Fi", "仅移动网络", "所有网络")
                 .desc("直接解析 Apple Music 动态封面并缓存")

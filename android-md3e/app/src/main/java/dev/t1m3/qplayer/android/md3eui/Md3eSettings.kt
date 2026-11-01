@@ -36,6 +36,7 @@ private val md3eSettingKeys = setOf(
     "lyricGlow", "lyricShadow", "lyricLinearAnim", "lyricMd3Color",
     "lyricProgressStyle", SettingsCatalog.COVER_BACKGROUND_KEY, SettingsCatalog.PLAYER_ARTWORK_KEY,
     SettingsCatalog.DYNAMIC_COVER_NETWORK_KEY, SettingsCatalog.DYNAMIC_COVER_API_BASE_KEY, SettingsCatalog.DYNAMIC_COVER_STOREFRONT_KEY,
+    SettingsCatalog.DYNAMIC_COVER_BLUR_KEY, SettingsCatalog.DYNAMIC_COVER_EDGE_POSITION_KEY,
     "action:clearCache", "action:openRepo", "action:checkUpdate",
     "logCaptureEnabled", "action:logExport", "eqEnabled", "action:eqEditor",
 )
@@ -135,7 +136,8 @@ internal fun Md3eSettingRow(spec: SettingSpec, runtime: Md3eRuntime,
     @Suppress("UNUSED_PARAMETER") revision: Int) {
     val settings = runtime.settings
     val sonic = LocalSonicDesign.current
-    if (spec.key in setOf(SettingsCatalog.DYNAMIC_COVER_NETWORK_KEY, SettingsCatalog.DYNAMIC_COVER_API_BASE_KEY, SettingsCatalog.DYNAMIC_COVER_STOREFRONT_KEY) &&
+    if (spec.key in setOf(SettingsCatalog.DYNAMIC_COVER_NETWORK_KEY, SettingsCatalog.DYNAMIC_COVER_API_BASE_KEY, SettingsCatalog.DYNAMIC_COVER_STOREFRONT_KEY,
+            SettingsCatalog.DYNAMIC_COVER_BLUR_KEY, SettingsCatalog.DYNAMIC_COVER_EDGE_POSITION_KEY) &&
         settings.intOf(SettingsCatalog.PLAYER_ARTWORK_KEY) != SettingsCatalog.ARTWORK_DYNAMIC) return
     val staticPalette = dev.t1m3.qplayer.color.MaterialArtworkPalette.isStaticStyle(settings.intOf("paletteStyle"))
     if (spec.key == "palettePreset" && (!sonic || !staticPalette)) return

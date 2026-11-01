@@ -65,6 +65,17 @@ public final class AppleMotionArtwork {
     public static double albumSimilarity(String left, String right) {
         return normalizedSimilarity(normalizeAlbum(left), normalizeAlbum(right));
     }
+    /** Featuring credits vary by distributor; live/remix/acoustic identities do not. */
+    private static String normalizeTrack(String text) {
+        String value = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFKC)
+                .replaceAll("(?i)[(\\[【]\\s*(?:feat\\.?|ft\\.?|featuring)\\s+[^)\\]】]*[)\\]】]", " ")
+                .replaceAll("(?i)\\b(?:feat\\.?|ft\\.?|featuring)\\s+[^()\\[\\]【】]+", " ");
+        return normalizeAlbum(value);
+    }
+    private static boolean sameTrack(String left, String right) {
+        String name = normalizeTrack(left);
+        return !name.isEmpty() && name.equals(normalizeTrack(right));
+    }
     private static double normalizedSimilarity(String a, String b) {
         if (a.isEmpty() || b.isEmpty()) return 0;
         if (a.equals(b)) return 1;
@@ -159,7 +170,7 @@ public final class AppleMotionArtwork {
             String name = str(row, "collectionName"), id = str(row, "collectionId");
             if (!id.matches("[0-9]+") || name.isEmpty()) continue;
             if (!normalizeAlbum(title).isEmpty()) {
-                if (albumSimilarity(title, str(row, "trackName")) != 1) continue;
+                if (!sameTrack(title, str(row, "trackName"))) continue;
             } else if (albumSimilarity(album, name) < .55) continue;
             if (seen.add(id)) albums.add(new CatalogAlbum(id, name, str(row, "artistName"), "",
                     officialAlbumRank(name, album, row) + similarity(artist, str(row, "artistName"))));
@@ -177,7 +188,7 @@ public final class AppleMotionArtwork {
             if (!element.isJsonObject()) continue;
             JsonObject row = element.getAsJsonObject(), attrs = obj(row, "attributes");
             String recording = str(attrs, "isrc");
-            if (recording.isEmpty() || albumSimilarity(title, str(attrs, "name")) != 1 ||
+            if (recording.isEmpty() || !sameTrack(title, str(attrs, "name")) ||
                     similarity(artist, str(attrs, "artistName")) < .45) continue;
             JsonArray parents = obj(obj(row, "relationships"), "albums").getAsJsonArray("data");
             for (JsonElement parent : parents == null ? new JsonArray() : parents) {
@@ -212,7 +223,7 @@ public final class AppleMotionArtwork {
                 if (!track.isJsonObject()) continue;
                 JsonObject a = obj(track.getAsJsonObject(), "attributes");
                 String isrc = str(a, "isrc");
-                if (albumSimilarity(title, str(a, "name")) == 1 && similarity(artist, str(a, "artistName")) >= .45 && !isrc.isEmpty()) ids.add(isrc);
+                if (sameTrack(title, str(a, "name")) && similarity(artist, str(a, "artistName")) >= .45 && !isrc.isEmpty()) ids.add(isrc);
             }
         }
         return ids;
@@ -228,7 +239,7 @@ public final class AppleMotionArtwork {
             for (JsonElement track : tracks) {
                 if (!track.isJsonObject()) continue;
                 JsonObject a = obj(track.getAsJsonObject(), "attributes");
-                if (isrcs.contains(str(a, "isrc")) && albumSimilarity(title, str(a, "name")) == 1 && similarity(artist, str(a, "artistName")) >= .45) {
+                if (isrcs.contains(str(a, "isrc")) && sameTrack(title, str(a, "name")) && similarity(artist, str(a, "artistName")) >= .45) {
                     JsonArray single = new JsonArray(); single.add(row);
                     Cover cover = parseSearch(asSearch(single), str(attrs, "name"), artist);
                     if (cover != null) return cover;

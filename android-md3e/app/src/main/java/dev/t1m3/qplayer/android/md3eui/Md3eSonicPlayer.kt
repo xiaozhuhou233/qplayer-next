@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -186,6 +187,7 @@ internal fun SonicPlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyr
 private fun SonicPlayerActions(runtime: Md3eRuntime, onLyrics: () -> Unit, onQueue: () -> Unit,
     onCollect: () -> Unit) {
     val state = runtime.playback
+    val context = LocalContext.current
     var more by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween) {
@@ -200,6 +202,8 @@ private fun SonicPlayerActions(runtime: Md3eRuntime, onLyrics: () -> Unit, onQue
         Box {
             SonicPlayerAction(SonicIcons.More, "更多播放操作", onClick = { more = true })
             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                DropdownMenuItem(text = { Text("分享") },
+                    onClick = { more = false; sharePlayerTrack(runtime, context) })
                 DropdownMenuItem(text = { Text("播放队列") }, enabled = state.queueSize > 0,
                     onClick = { more = false; onQueue() })
                 if (runtime.bili.playing) {

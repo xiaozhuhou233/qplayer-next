@@ -2,6 +2,8 @@
 
 package dev.t1m3.qplayer.android.md3eui
 
+import dev.t1m3.qplayer.settings.SettingsCatalog
+
 import dev.t1m3.qplayer.android.ui.IosAwareAlertDialog as AlertDialog
 import dev.t1m3.qplayer.android.ui.IosAwareIconButton as IconButton
 import dev.t1m3.qplayer.android.ui.IosAwareTextButton as TextButton
@@ -174,6 +176,9 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
     val dynamicCover = rememberDynamicPlayerCover(runtime, visible = tab == 0)
     val dynamicTransition = rememberDynamicCoverTransition(state.songId, dynamicCover)
     val dynamicBackground = dynamicTransition.visible
+    val dynamicBlurMask = runtime.settings.bool(SettingsCatalog.DYNAMIC_COVER_BLUR_KEY)
+    val dynamicCoverFraction = runtime.settings.intOf(SettingsCatalog.DYNAMIC_COVER_EDGE_POSITION_KEY)
+        .coerceIn(40, 90) / 100f
     val mvExpected = tab == 0 && mvBackdropExpected(runtime)
     val playerBackground = if (mvExpected) Color.Black else
         lerp(MaterialTheme.colorScheme.surfaceContainer, Color.Black, dynamicTransition.progress)
@@ -274,11 +279,10 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
         if (dynamicBackground) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = dynamicTransition.progress }) {
                 Md3eDynamicCoverBackdrop(dynamicTransition.presentation, state.cover, Modifier.fillMaxSize())
-                Box(Modifier.fillMaxSize().dynamicCoverSoftEdges()) {
+                Box(Modifier.fillMaxSize().dynamicCoverSoftEdges(dynamicBlurMask, dynamicCoverFraction)) {
                 DynamicCoverCard(runtime,
-                    Modifier.fillMaxWidth().fillMaxHeight(.72f)
-                        .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
-                        .padding(vertical = 8.dp).clickable { tab = 1 },
+                    Modifier.fillMaxWidth().fillMaxHeight(dynamicCoverFraction)
+                        .clickable { tab = 1 },
                     presentation = dynamicTransition.presentation, renderVideo = dynamicCover.hasMotion)
                 }
             }
@@ -323,6 +327,7 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (tab != 0) {
             if (LocalSonicDesign.current) SonicPlayerHeader(tab, onBack, { tab = 0 }, onQueue,
                 onShare = { sharePlayerTrack(runtime, context) })
             else if (LocalIosDesign.current) dev.t1m3.qplayer.android.ui.IosPlayerHeader(
@@ -346,6 +351,7 @@ internal fun Md3ePlayerScreen(runtime: Md3eRuntime, onBack: () -> Unit,
                 }
             }
             Spacer(Modifier.height(12.dp))
+            }
             SharedTransitionLayout(Modifier.fillMaxWidth().weight(1f)) {
                 val coverScope = this
                 val sharedBackdrop = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -392,7 +398,7 @@ private fun PlayerTab(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-private fun sharePlayerTrack(runtime: Md3eRuntime, context: Context) {
+internal fun sharePlayerTrack(runtime: Md3eRuntime, context: Context) {
     val state = runtime.playback
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
     if (runtime.bili.playing && runtime.bili.bvid.isNotBlank()) {
@@ -418,7 +424,7 @@ private fun PlayerDetailTab(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics
         return
     }
     if (LocalClaudeDesign.current) {
-        ClaudePlayerDetail(runtime, showArtwork, onLyrics, onOpenAlbum, onOpenArtist)
+        ClaudePlayerDetail(runtime, showArtwork, onLyrics, onQueue, onOpenAlbum, onOpenArtist)
         return
     }
     val state = runtime.playback
@@ -477,12 +483,13 @@ private fun PlayerDetailTab(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics
         } else PlayerProgress(state, wavy = runtime.settings.intOf("lyricProgressStyle") == 0,
             onSeek = { runtime.seekDisplayed(state, it) }, modifier = Modifier.fillMaxWidth())
         PlayerTransport(runtime)
+        PlayerDetailOverflow(runtime, onLyrics, onQueue)
     }
 }
 
 @Composable
 private fun ClaudePlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics: () -> Unit,
-    onOpenAlbum: (Long) -> Unit, onOpenArtist: (Long) -> Unit) {
+    onQueue: () -> Unit, onOpenAlbum: (Long) -> Unit, onOpenArtist: (Long) -> Unit) {
     val state = runtime.playback
     var biliFavoriteOpen by remember { mutableStateOf(false) }
     var biliLoginOpen by remember { mutableStateOf(false) }
@@ -532,6 +539,7 @@ private fun ClaudePlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyr
             wavy = false, onSeek = { runtime.seekDisplayed(state, it) }, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(gap))
         ClaudePlayerTransport(runtime)
+        PlayerDetailOverflow(runtime, onLyrics, onQueue)
         Spacer(Modifier.height(if (compact) 12.dp else 24.dp))
     }
     }
@@ -595,9 +603,28 @@ private fun IosPlayerDetail(runtime: Md3eRuntime, showArtwork: Boolean, onLyrics
                     if (runtime.bili.playing) { if (runtime.bili.loggedIn) biliFavorite = true else biliLogin = true }
                     else runtime.likeDisplayed(state)
                 }, favoriteLongPress = {})
-            // The original shuffle / repeat / favorite capsule is the last row.
-            // Lyrics and queue remain in the player header.
+            PlayerDetailOverflow(runtime, onLyrics, onQueue)
             Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
+        }
+    }
+}
+
+/** Header actions stay available in the bottom menu while artwork reaches the screen edge. */
+@Composable
+private fun PlayerDetailOverflow(runtime: Md3eRuntime, onLyrics: () -> Unit, onQueue: () -> Unit) {
+    val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Box {
+            IconButton(onClick = { expanded = true }) { Icon(SonicIcons.More, "更多播放操作") }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(text = { Text("歌词") }, enabled = !runtime.bili.playing,
+                    onClick = { expanded = false; onLyrics() })
+                DropdownMenuItem(text = { Text("播放队列") }, enabled = runtime.playback.queueSize > 0,
+                    onClick = { expanded = false; onQueue() })
+                DropdownMenuItem(text = { Text("分享") },
+                    onClick = { expanded = false; sharePlayerTrack(runtime, context) })
+            }
         }
     }
 }

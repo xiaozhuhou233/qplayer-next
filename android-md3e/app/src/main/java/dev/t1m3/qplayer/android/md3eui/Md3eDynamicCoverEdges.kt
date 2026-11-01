@@ -27,68 +27,68 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.ceil
 
-/** Live reflection with blur confined to a quarter-resolution lower strip. */
+/** One quarter-resolution blur pass. The sharp video never passes through it. */
 @Composable
-internal fun Modifier.dynamicCoverSoftEdges(): Modifier {
+internal fun Modifier.dynamicCoverSoftEdges(enabled: Boolean, coverFraction: Float): Modifier {
     val density = LocalDensity.current
-    val top = WindowInsets.statusBars.getTop(density).toFloat() + with(density) { 8.dp.toPx() }
-    val inset = with(density) { 8.dp.toPx() }
-    val lead = with(density) { 16.dp.toPx() }
-    val tail = with(density) { 96.dp.toPx() }
-    val padding = with(density) { 32.dp.toPx() }
+    val topInset = WindowInsets.statusBars.getTop(density).toFloat()
+    val clipped = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; clip = true }
+    // Keep only the inexpensive scrims when disabled; allocate no reflection/blur RenderNodes.
+    if (!enabled) return drawWithCache {
+        val topShadow = Brush.verticalGradient(
+            0f to Color.Black.copy(alpha = .64f),
+            .25f to Color.Black.copy(alpha = .46f),
+            .65f to Color.Black.copy(alpha = .16f),
+            1f to Color.Transparent,
+            endY = minOf(size.height * .24f, topInset + 112.dp.toPx()))
+        val shade = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)),
+            startY = size.height * coverFraction, endY = size.height)
+        onDrawWithContent { drawContent(); drawRect(topShadow); drawRect(shade) }
+    }
+    val lead = with(density) { 28.dp.toPx() }
+    val tail = with(density) { 120.dp.toPx() }
+    val padding = with(density) { 96.dp.toPx() }
     val reduction = 4f
     val source = rememberGraphicsLayer()
     val scene = rememberGraphicsLayer()
-    val light = rememberGraphicsLayer()
-    val deep = rememberGraphicsLayer()
-    val lightMasked = rememberGraphicsLayer()
-    val deepMasked = rememberGraphicsLayer()
-    val effects = remember(density) { listOf(8.dp, 28.dp).map {
-        // The output is enlarged by four, so scale the kernel down with it.
-        val radius = with(density) { it.toPx() } / reduction
+    val blurred = rememberGraphicsLayer()
+    val masked = rememberGraphicsLayer()
+    val effect = remember(density) {
+        // Previously the deepest pass was 28dp. One 56dp kernel replaces both old passes.
+        val radius = with(density) { 56.dp.toPx() } / reduction
         BlurEffect(radius, radius, TileMode.Clamp)
-    } }
+    }
     SideEffect {
         if (Build.VERSION.SDK_INT >= 31) {
-            light.renderEffect = effects[0]
-            deep.renderEffect = effects[1]
-            lightMasked.compositingStrategy = LayerCompositingStrategy.Offscreen
-            deepMasked.compositingStrategy = LayerCompositingStrategy.Offscreen
+            blurred.renderEffect = effect
+            masked.compositingStrategy = LayerCompositingStrategy.Offscreen
         }
     }
-    return graphicsLayer {
-        compositingStrategy = CompositingStrategy.Offscreen
-        clip = true
-    }.drawWithCache {
-        // Match the unchanged 72%-height card and bottom padding. Start only
-        // 16dp before its lower edge instead of blurring 64dp of the cover.
-        val bottom = (size.height * .72f - inset).coerceIn(top + 1f, size.height)
-        val start = bottom - minOf(lead, (bottom - top) * .04f)
+    return clipped.drawWithCache {
+        val bottom = (size.height * coverFraction).coerceIn(0f, size.height)
+        val start = (bottom - lead).coerceAtLeast(0f)
         val end = minOf(size.height, bottom + tail)
         val stripTop = (start - padding).coerceAtLeast(0f)
         val stripSize = IntSize(ceil(size.width / reduction).toInt().coerceAtLeast(1),
             ceil((size.height - stripTop) / reduction).toInt().coerceAtLeast(1))
-        val masks = (0..1).map { level ->
-            val stops = (0..64).map { step ->
-                val fraction = step / 64f
-                val y = stripTop + fraction * stripSize.height * reduction
-                val progress = ((y - start) / (end - start).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                val t = (progress * 2f - level).coerceIn(0f, 1f)
-                fraction to Color.White.copy(alpha = t * t * (3f - 2f * t))
-            }
-            Brush.verticalGradient(*stops.toTypedArray(), endY = stripSize.height.toFloat())
+        val stops = (0..64).map { step ->
+            val fraction = step / 64f
+            val y = stripTop + fraction * stripSize.height * reduction
+            val t = ((y - start) / (end - start).coerceAtLeast(1f)).coerceIn(0f, 1f)
+            // Zero first/second derivatives at either end avoid a visible blur boundary.
+            val alpha = t * t * t * (t * (t * 6f - 15f) + 10f)
+            fraction to Color.White.copy(alpha = alpha.coerceIn(0f, 1f))
         }
+        val mask = Brush.verticalGradient(*stops.toTypedArray(), endY = stripSize.height.toFloat())
         val topShadow = Brush.verticalGradient(
-            0f to Color.Black,
-            .25f to Color.Black.copy(alpha = .78f),
-            .65f to Color.Black.copy(alpha = .30f),
+            0f to Color.Black.copy(alpha = .64f),
+            .25f to Color.Black.copy(alpha = .46f),
+            .65f to Color.Black.copy(alpha = .16f),
             1f to Color.Transparent,
-            endY = minOf(size.height * .24f, top + 112.dp.toPx()))
+            endY = minOf(size.height * .24f, topInset + 112.dp.toPx()))
         val shade = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)),
             startY = bottom, endY = size.height)
         onDrawWithContent {
-            // Preserve moving video and its reflection with one recording. The
-            // sharp main video never goes through a blur or reduced-size layer.
             source.record { this@onDrawWithContent.drawContent() }
             scene.record {
                 drawLayer(source)
@@ -98,23 +98,18 @@ internal fun Modifier.dynamicCoverSoftEdges(): Modifier {
             }
             drawLayer(scene)
             if (Build.VERSION.SDK_INT >= 31) {
-                fun renderStrip(blurred: androidx.compose.ui.graphics.layer.GraphicsLayer,
-                    masked: androidx.compose.ui.graphics.layer.GraphicsLayer, mask: Brush) {
-                    blurred.record(size = stripSize) {
-                        scale(1f / reduction, 1f / reduction, pivot = Offset.Zero) {
-                            translate(top = -stripTop) { drawLayer(scene) }
-                        }
-                    }
-                    masked.record(size = stripSize) {
-                        drawLayer(blurred)
-                        drawRect(mask, blendMode = BlendMode.DstIn)
-                    }
-                    translate(top = stripTop) {
-                        scale(reduction, reduction, pivot = Offset.Zero) { drawLayer(masked) }
+                blurred.record(size = stripSize) {
+                    scale(1f / reduction, 1f / reduction, pivot = Offset.Zero) {
+                        translate(top = -stripTop) { drawLayer(scene) }
                     }
                 }
-                renderStrip(light, lightMasked, masks[0])
-                renderStrip(deep, deepMasked, masks[1])
+                masked.record(size = stripSize) {
+                    drawLayer(blurred)
+                    drawRect(mask, blendMode = BlendMode.DstIn)
+                }
+                translate(top = stripTop) {
+                    scale(reduction, reduction, pivot = Offset.Zero) { drawLayer(masked) }
+                }
             }
             drawRect(topShadow)
             drawRect(shade)

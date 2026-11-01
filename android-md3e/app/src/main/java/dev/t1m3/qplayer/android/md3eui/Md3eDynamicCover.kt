@@ -191,7 +191,7 @@ internal fun Md3eDynamicCoverBackdrop(presentation: DynamicCoverPresentation, fa
         } }
     }.value }
     Box(modifier.background(Color(0xFF1C1B20))) {
-        Md3eSoftArtworkBackdrop(fallback, Modifier.fillMaxSize(), radius = 24.dp)
+        if (ambient == null) Md3eSoftArtworkBackdrop(fallback, Modifier.fillMaxSize(), radius = 24.dp)
         ambient?.let { data ->
             Image(data.image, null, Modifier.fillMaxSize().then(
                 if (Build.VERSION.SDK_INT >= 31) Modifier.blur(24.dp) else Modifier), contentScale = ContentScale.Crop)

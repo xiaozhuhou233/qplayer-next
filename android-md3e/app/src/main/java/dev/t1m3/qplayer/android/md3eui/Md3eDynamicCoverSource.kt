@@ -40,7 +40,7 @@ internal object Md3eDynamicCoverSource {
             currentCoroutineContext().ensureActive()
             if (!networkAllowed() || artist.isBlank() || (album.isBlank() && title.isBlank())) return@withLock null
             val directory = File(context.cacheDir, "apple-motion-v1").apply { mkdirs() }
-            val key = digest("song-album-v2|$apiBaseUrl|$storefront|${album.trim().lowercase(Locale.ROOT)}|${artist.trim().lowercase(Locale.ROOT)}|${title.trim().lowercase(Locale.ROOT)}")
+            val key = digest("song-album-v3|$apiBaseUrl|$storefront|${album.trim().lowercase(Locale.ROOT)}|${artist.trim().lowercase(Locale.ROOT)}|${title.trim().lowercase(Locale.ROOT)}")
             val now = System.currentTimeMillis()
             memory[key]?.let { if (now < it.expires) return@withLock it.cover }
             val metadata = File(directory, "$key.json")
