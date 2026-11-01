@@ -30,7 +30,7 @@ private class AiFluidMotion {
 
 /** Fused gyro orientation avoids raw-gyro drift. All animation reads happen in the draw phase. */
 @Composable
-internal fun Md3eAiFluidBackground(dark: Boolean, enabled: Boolean, modifier: Modifier = Modifier) {
+internal fun Md3eAiFluidBackground(palette: AiFluidPalette, enabled: Boolean, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val motion = remember { AiFluidMotion() }
@@ -99,21 +99,22 @@ internal fun Md3eAiFluidBackground(dark: Boolean, enabled: Boolean, modifier: Mo
         }
     }
     Canvas(modifier) {
-        drawRect(if (dark) Color(0xFF141624) else Color(0xFFE9F1FE))
+        drawRect(palette.base)
         val p = motion.phase
-        val tilt = motion.offset
+        val tilt = motion.offset * palette.travel
+        val travel = palette.travel
         fun cloud(color: Color, x: Float, y: Float, radius: Float) {
             val center = Offset(size.width * x, size.height * y)
             drawCircle(Brush.radialGradient(listOf(color, color.copy(alpha = color.alpha * .55f), Color.Transparent),
                 center, size.maxDimension * radius), size.maxDimension * radius, center)
         }
-        cloud(if (dark) Color(0xFF383057) else Color(0xFFDAC7FB),
-            .7f + sin(p) * .17f + tilt.x * .22f, .33f + cos(p * 1.4f) * .12f + tilt.y * .18f, .78f)
-        cloud(if (dark) Color(0xFF20454D) else Color(0xFFAEE8F5),
-            .14f + cos(p * .8f) * .16f - tilt.x * .17f, .78f + sin(p) * .11f - tilt.y * .16f, .61f)
-        cloud(if (dark) Color(0xFF4F334C) else Color(0xFFF8DBEB),
-            .85f - sin(p * 1.2f) * .2f + tilt.x * .15f, .95f + cos(p) * .1f - tilt.y * .22f, .67f)
-        cloud(if (dark) Color(0x553C4C78) else Color(0xAAEBEDFF),
-            .2f - tilt.x * .13f, .1f + sin(p * .7f) * .1f + tilt.y * .15f, .65f)
+        cloud(palette.first,
+            .7f + sin(p) * .17f * travel + tilt.x * .22f, .33f + cos(p * 1.4f) * .12f * travel + tilt.y * .18f, .78f)
+        cloud(palette.second,
+            .14f + cos(p * .8f) * .16f * travel - tilt.x * .17f, .78f + sin(p) * .11f * travel - tilt.y * .16f, .61f)
+        cloud(palette.third,
+            .85f - sin(p * 1.2f) * .2f * travel + tilt.x * .15f, .95f + cos(p) * .1f * travel - tilt.y * .22f, .67f)
+        cloud(palette.fourth,
+            .2f - tilt.x * .13f, .1f + sin(p * .7f) * .1f * travel + tilt.y * .15f, .65f)
     }
 }

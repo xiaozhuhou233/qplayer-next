@@ -5,7 +5,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +31,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Color, paper: Color,
     content: @Composable () -> Unit) {
+    val appearance = LocalAiConversationAppearance.current
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
@@ -65,7 +65,8 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
             drawerContent = {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, LocalContentColor provides ink) {
                     ModalDrawerSheet(Modifier.fillMaxWidth(.88f).widthIn(max = 360.dp),
-                        drawerShape = RoundedCornerShape(28.dp), drawerContainerColor = paper.copy(alpha = 1f),
+                        drawerShape = if (appearance.design == AiConversationDesign.Sonic) RoundedCornerShape(28.dp) else appearance.shape,
+                        drawerContainerColor = paper.copy(alpha = 1f),
                         drawerContentColor = ink) {
                         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically) {
@@ -73,13 +74,13 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
                                 fontWeight = FontWeight.SemiBold)
                             IconButton(onClick = { state.historyOpen = false }) { Icon(Md3eIcons.Close, "关闭历史") }
                         }
-                        FilledTonalButton(onClick = { state.newConversation(); state.historyOpen = false },
+                        AiConversationNewButton(onClick = { state.newConversation(); state.historyOpen = false },
                             enabled = !state.busy && !state.historyLoading,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-                            shape = CircleShape) { Text("新对话") }
+                        ) { Text("新对话") }
                         if (state.busy) Text("正在生成，完成后可切换对话",
                             Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .65f))
+                            style = MaterialTheme.typography.bodySmall, color = appearance.muted)
                         if (state.historyError.isNotEmpty()) Text(state.historyError,
                             Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall)
@@ -87,10 +88,10 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
                             TextButton(onClick = state::retryHistoryLoad, modifier = Modifier.padding(horizontal = 16.dp)) { Text("重试读取历史") }
                         when {
                             state.historyLoading -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Md3eLoadingIndicator(Modifier.size(36.dp))
+                                AiConversationLoading(Modifier.size(36.dp))
                             }
                             state.sessions.isEmpty() -> Text("对话会自动保存在这里",
-                                Modifier.padding(24.dp), color = ink.copy(alpha = .65f),
+                                Modifier.padding(24.dp), color = appearance.muted,
                                 style = MaterialTheme.typography.bodyMedium)
                             else -> LazyColumn(contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -98,9 +99,9 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
                                     val selected = state.conversationId == session.id
                                     Surface(onClick = { state.restore(session); state.historyOpen = false },
                                         enabled = !state.busy,
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                                        contentColor = ink) {
+                                        shape = appearance.shape,
+                                        color = if (selected) appearance.user else Color.Transparent,
+                                        contentColor = if (selected) appearance.onUser else ink) {
                                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically) {
                                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -109,10 +110,12 @@ internal fun AiConversationHistoryHost(state: Md3eAiConversationState, ink: Colo
                                                 Text(remember(session.updatedAt) {
                                                     DateTimeFormatter.ofPattern("MM月dd日 HH:mm").withZone(ZoneId.systemDefault())
                                                         .format(Instant.ofEpochMilli(session.updatedAt))
-                                                }, style = MaterialTheme.typography.labelSmall, color = ink.copy(alpha = .55f))
+                                                }, style = MaterialTheme.typography.labelSmall,
+                                                    color = if (selected) appearance.onUser.copy(alpha = .75f) else appearance.muted)
                                             }
                                             IconButton(onClick = { state.deleteHistory(session.id) }, enabled = !state.busy) {
-                                                Icon(Md3eIcons.Delete, "删除此对话", Modifier.size(20.dp), tint = ink.copy(alpha = .6f))
+                                                Icon(Md3eIcons.Delete, "删除此对话", Modifier.size(20.dp),
+                                                    tint = if (selected) appearance.onUser.copy(alpha = .8f) else appearance.muted)
                                             }
                                         }
                                     }
